@@ -595,7 +595,7 @@ NB : W (Wesel Yang Dilalui), DL (Dipo Loko), D1 (Dipo 1), D2 (Dipo 2), C1 (Cuci 
 
 /* ========================================================= */
 
-const ROLES = ["PLR 1","PLR 2","PLR DIPO","MASINIS/ASMAS","SCHOWING","PPKA"];
+const ROLES = ["PLR 1","PLR 2","PLR DIPO","MASINIS/ASMAS","PPKA"];
 const STORAGE_KEY = "perintah_langsir_state_v4";
 const SHIFTS = [
   {id:"malam", label:"Dinas Malam"},
@@ -917,7 +917,6 @@ function renderForm(form, fIdx){
           <td class="role">PLR 2</td>
           <td class="role">PLR DIPO</td>
           <td class="role">MASINIS/ASMAS</td>
-          <td class="role">SCHOWING</td>
           <td class="role">PPKA</td>
         </tr>
         <tr class="sign-blank-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
@@ -2144,7 +2143,7 @@ const PEGAWAI_REPO_NAME = "inputpegawai";
 const PEGAWAI_DATA_PATH = "data.json";
 const PEGAWAI_LS_TOKEN_KEY = "inputpegawai_pat_v1_embedded";
 
-let pegawaiState = { jabatan: ["PLR","PLR DIPO","SCHOWING","MASINIS","PPKA"], orang: [] };
+let pegawaiState = { jabatan: ["PLR","PLR DIPO","MASINIS","PPKA"], orang: [] };
 let pegawaiSha = null;
 let pegawaiDirty = false;
 let pegawaiInitDone = false;
@@ -2583,7 +2582,7 @@ function pegawaiImportFromFile(file){
       if(!parsed || !Array.isArray(parsed.orang)){ throw new Error("format tidak sesuai (tidak ada 'orang')"); }
       if(!confirm(`Import akan MENGGANTI seluruh data yang sedang tampil (${pegawaiState.orang.length} data) dengan isi file ini (${parsed.orang.length} data). Perubahan ini belum tersimpan ke GitHub sampai kamu klik "Simpan ke GitHub". Lanjutkan?`)) return;
       pegawaiState = {
-        jabatan: Array.isArray(parsed.jabatan) && parsed.jabatan.length ? parsed.jabatan : ["PLR","PLR DIPO","SCHOWING","MASINIS","PPKA"],
+        jabatan: Array.isArray(parsed.jabatan) && parsed.jabatan.length ? parsed.jabatan : ["PLR","PLR DIPO","MASINIS","PPKA"],
         orang: parsed.orang
       };
       pegawaiRenderJabatanOptions();
