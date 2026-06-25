@@ -1955,6 +1955,20 @@ function fitToOnePage(){
     }
   }
   setAllSheetsFs(bestFs);
+
+  // === DIAGNOSTIK SEMENTARA -- HAPUS SETELAH MASALAH KETEMU ===
+  // Ini cuma untuk membuktikan apakah fitToOnePage() benar-benar
+  // menghasilkan angka yang masuk akal. Setelah klik OK di alert ini,
+  // proses print akan tetap lanjut seperti biasa.
+  alert(
+    "DIAGNOSTIK CETAK\n" +
+    "--fs hasil hitungan: " + bestFs.toFixed(4) + "\n" +
+    "usableHeightPx (target 1 halaman): " + usableHeightPx.toFixed(1) + " px\n" +
+    "Tinggi konten SETELAH di-set --fs: " + totalSheetsHeightPx().toFixed(1) + " px\n" +
+    "pxPerMm: " + pxPerMm.toFixed(3) + "\n" +
+    "Jumlah .sheet ditemukan: " + document.querySelectorAll(".sheet").length
+  );
+  // === AKHIR DIAGNOSTIK SEMENTARA ===
 }
 
 function resetSheetsAfterPrint(){
@@ -2016,3 +2030,4 @@ document.getElementById("btnPrint").addEventListener("click", ()=>{
 </script>
 </body>
 </html>
+
