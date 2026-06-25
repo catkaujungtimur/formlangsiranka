@@ -560,17 +560,14 @@ function formatHariTanggal(offsetDays){
   const mm = String(d.getMonth()+1).padStart(2,"0");
   return `${hariNames[d.getDay()]}/${dd}-${mm}-${d.getFullYear()}`;
 }
-
 function romawiBulan(m){
   return ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"][m];
 }
-
 function romawiBulanTahunForOffset(offsetDays){
   const d = new Date();
   d.setDate(d.getDate() + (offsetDays || 0));
   return { romawi: romawiBulan(d.getMonth()), tahun: d.getFullYear() };
 }
-
 function extractLabelFromKet(ketFull){
   const s = String(ketFull || "");
   const colonIdx = s.indexOf(":");
@@ -583,7 +580,6 @@ function extractTextAfterLabel(ketFull){
   if(colonIdx === -1) return s.trim();
   return s.slice(colonIdx+1).trim();
 }
-
 function rowsToText(rows){
   return rows.map(r => r.ket || "").join("\n");
 }
@@ -600,16 +596,17 @@ function textToRows(text, posisiAwalPertama){
 }
 function recomputeChain(rows, posisiAwalPertama){
   let prev = posisiAwalPertama || "";
-  rows.forEach(r=>{ r.posAwal = prev; prev = r.posAkhir; });
+  rows.forEach(r=>{
+    r.posAwal = prev;
+    prev = r.posAkhir;
+  });
   return rows;
 }
-
 function parseLokoLabelToTotal(label){
   const s = String(label || "").toUpperCase();
   const m = s.match(/(\d+)\s*(KERETA|KRT)/);
   return m ? parseInt(m[1], 10) : 0;
 }
-
 function computeLokoLabels(rows){
   let prevTotal = 0;
   return rows.map(r=>{
@@ -624,8 +621,12 @@ function computeLokoLabels(rows){
     let ambil = 0, lepas = 0, lepasSemua = false;
     const mAmbil = ket.match(/AMBIL\s+(\d+)\s*KRT/);
     if(mAmbil) ambil = parseInt(mAmbil[1],10);
-    if(ket.includes("LEPAS SEMUA")){ lepasSemua = true; }
-    else { const mLepas = ket.match(/LEPAS\s+(\d+)\s*KRT/); if(mLepas) lepas = parseInt(mLepas[1],10); }
+    if(ket.includes("LEPAS SEMUA")){
+      lepasSemua = true;
+    } else {
+      const mLepas = ket.match(/LEPAS\s+(\d+)\s*KRT/);
+      if(mLepas) lepas = parseInt(mLepas[1],10);
+    }
     prevTotal = lepasSemua ? 0 : (prevTotal + ambil - lepas);
     return label;
   });
@@ -635,370 +636,591 @@ function blockTitle(rows){
   if(withKet.length === 0) return "";
   return withKet.map(r => r.posAkhir).join("-") + ` (${withKet.length})`;
 }
-
-function escapeAttr(s){ return String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
-function escapeHtml(s){ return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
-
-function render(){
-  applyColWidths();
-  renderFormatBarValues();
-  const container = document.getElementById("formsContainer");
-  container.innerHTML = "";
-  shiftState.forms.forEach((form, fIdx)=>{
-    container.appendChild(renderForm(form, fIdx));
-  });
-  saveAll();
-  pushHistory();
+function escapeAttr(s){
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+}
+function escapeHtml(s){
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
-function renderForm(form, fIdx){
-  const wrap = document.createElement("div");
-  wrap.className = "form-wrap";
-  const headBar = document.createElement("div");
-  headBar.className = "form-head-bar";
-  headBar.innerHTML = `
-    <span class="form-label">Form ${fIdx+1}</span>
-    <button class="form-del small ghost" data-action="delform" data-form="${fIdx}" ${shiftState.forms.length<=1?"disabled":""}>Hapus Form Ini</button>
-  `;
-  wrap.appendChild(headBar);
-
-  const sheet = document.createElement("div");
-  sheet.className = "sheet";
-  sheet.innerHTML = `
-    <p class="title">FORM PERINTAH LANGSIR</p>
-    <p class="nomor">NOMOR: <input class="nomor-inline-input" data-form="${fIdx}" data-metafield="inpNomorAwal" value="${escapeAttr(form.inpNomorAwal)}" size="2">/<input class="nomor-inline-input" data-form="${fIdx}" data-metafield="inpKodeKtg" value="${escapeAttr(form.inpKodeKtg || "KTG")}" size="3">/<span data-nomor-romawi-for="${fIdx}">${romawiBulanTahunForOffset(form.dateOffsetDays).romawi}</span>/<span data-nomor-tahun-for="${fIdx}">${romawiBulanTahunForOffset(form.dateOffsetDays).tahun}</span></p>
-
-    <div class="meta">
-      <label>Hari/Tanggal :</label>
-      <div class="val date-nav">
-        <button class="date-arrow" data-action="date-prev" data-form="${fIdx}" title="Mundur 1 hari">&#9664;</button>
-        <span class="date-display">${formatHariTanggal(form.dateOffsetDays)}</span>
-        <button class="date-arrow" data-action="date-next" data-form="${fIdx}" title="Maju 1 hari">&#9654;</button>
-      </div>
-      <label class="meta-right-label">Emplasemen :</label>
-      <input class="cell meta-right-val" data-form="${fIdx}" data-metafield="inpEmplasemen" value="${escapeAttr(form.inpEmplasemen)}">
-
-      <label>Jam Mulai :</label>
-      <input class="cell" data-form="${fIdx}" data-metafield="inpJamMulai" value="${escapeAttr(form.inpJamMulai)}" placeholder="contoh: 15.00">
-      <div></div><div></div>
-
-      <label>Jam Selesai :</label>
-      <input class="cell" data-form="${fIdx}" data-metafield="inpJamSelesai" value="${escapeAttr(form.inpJamSelesai)}" placeholder="contoh: 16.30">
-      <div></div><div></div>
-    </div>
-
-    <table class="main">
-      <thead>
-        <tr>
-          <th class="col-sel">&#128422;<span class="col-resizer" data-colkey="sel"></span></th>
-          <th class="col-rk">Rangkaian/No<br>Kereta/Gerbong<span class="col-resizer" data-colkey="rk"></span></th>
-          <th class="col-pos">Posisi Awal<br>Di Jalur<span class="col-resizer" data-colkey="pos1"></span></th>
-          <th class="col-pos">Posisi Akhir<br>Di Jalur<span class="col-resizer" data-colkey="pos2"></span></th>
-          <th class="col-urut">Urutan Pergerakan Langsir<span class="col-resizer" data-colkey="urut"></span></th>
-          <th class="col-ket">Keterangan<span class="col-resizer" data-colkey="ket"></span></th>
-          <th class="col-actions"></th>
-        </tr>
-      </thead>
-      <tbody data-tbody-for="${fIdx}"></tbody>
-      <tfoot>
-        <tr>
-          <td colspan="7" class="open-popup-row">
-            <button data-action="addblock" data-form="${fIdx}">+ Tambah Rangkaian</button>
-            <span class="hint">Tiap rangkaian punya tombol "Edit Keterangan" sendiri untuk paste massal dari simulator.</span>
-          </td>
-        </tr>
-      </tfoot>
-    </table>
-
-    <div class="footer-block">
-      <div class="footnote-edit editable-cell" contenteditable="true" data-form="${fIdx}" data-foot="1" data-placeholder="Catatan kaki...">${escapeHtml(form.footnote)}</div>
-      <div class="sign-caption">
-        <span class="cap-receive">Yang Menerima Perintah</span>
-        <span class="cap-order">Yang Memerintah</span>
-      </div>
-      <table class="sign">
-        <tr>
-          <td class="role">PLR 1</td>
-          <td class="role">PLR 2</td>
-          <td class="role">PLR DIPO</td>
-          <td class="role">MASINIS/ASMAS</td>
-          <td class="role">SCHOWING</td>
-          <td class="role">PPKA</td>
-        </tr>
-        <tr class="sign-blank-row"><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-        <tr data-signrow-for="${fIdx}"></tr>
-      </table>
-    </div>
-  `;
-  wrap.appendChild(sheet);
-  renderTbody(form, fIdx, sheet.querySelector(`[data-tbody-for="${fIdx}"]`));
-  renderSignRow(form, fIdx, sheet.querySelector(`[data-signrow-for="${fIdx}"]`));
-  return wrap;
-}
-
-function renderTbody(form, fIdx, tbody){
-  tbody.innerHTML = "";
-  form.blocks.forEach((block, bIdx)=>{
-    const lokoLabels = computeLokoLabels(block.rows);
-    const title = blockTitle(block.rows);
-
-    const trHead = document.createElement("tr");
-    trHead.className = "block-header";
-    trHead.innerHTML = `
-      <td></td>
-      <td>
-        <div class="block-name-edit editable-cell" contenteditable="true" data-form="${fIdx}" data-block="${bIdx}" data-blockname="1" data-placeholder="Nama rangkaian">${escapeHtml(block.name)}</div>
-      </td>
-      <td colspan="3" class="block-title-auto" style="font-family:${globalFormat.fontFamily};">${title || "<span class='hint'>belum ada keterangan</span>"}</td>
-      <td>
-        <div class="row-actions">
-          <button data-action="editket" data-form="${fIdx}" data-block="${bIdx}" class="success">Edit Keterangan</button>
-          <button data-action="addrow-end" data-form="${fIdx}" data-block="${bIdx}" class="success">+ Baris</button>
-        </div>
-      </td>
-      <td class="col-actions">
-        <div class="row-actions">
-          <button data-action="delblock" data-form="${fIdx}" data-block="${bIdx}">Hapus</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(trHead);
-
-    block.rows.forEach((row, rIdx)=>{
-      const rute = lookupRute(row.posAwal, row.posAkhir);
-      const urutText = rute
-        ? `${rute.urut}${rute.wesel ? " (W: "+rute.wesel.trim()+")" : ""}`
-        : (row.posAwal || row.posAkhir ? "<span class='warn-text'>kombinasi posisi belum ada di tabel RUTE</span>" : "");
-      
-      const isSelected = row.selected !== false;
-      const tr = document.createElement("tr");
-      if(isSelected) tr.className = "row-selected";
-      tr.innerHTML = `
-        <td class="col-sel">
-          <input type="checkbox" class="row-check" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" ${isSelected ? "checked" : ""}>
-        </td>
-        <td>
-          <div class="editable-cell rk-editable auto" contenteditable="true" style="font-family:${globalFormat.fontFamily};" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-rkcell="1" data-navcol="-1" data-placeholder="${escapeAttr(lokoLabels[rIdx])}">${escapeHtml(row.rkOverride || "")}</div>
-        </td>
-        <td class="col-pos">
-          <input class="cell" style="text-align:center" value="${escapeAttr(row.posAwal)}" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-field="posAwal" data-navcol="0">
-        </td>
-        <td class="col-pos">
-          <input class="cell" style="text-align:center" value="${escapeAttr(row.posAkhir)}" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-field="posAkhir" data-navcol="1">
-        </td>
-        <td class="auto-line" style="font-family:${globalFormat.fontFamily};">${urutText}</td>
-        <td>
-          <div class="editable-cell" contenteditable="true" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-grid-cell="1" data-ketcell="1" data-placeholder="contoh: C1: AMBIL 9 KRT EX 279" data-navcol="2">${escapeHtml(row.ket)}</div>
-        </td>
-        <td class="row-menu-wrap col-actions">
-          <button class="row-menu-btn" data-action="togglemenu" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-navcol="3">&#8942;</button>
-          <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
-            <button data-action="insert-above" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di atas</button>
-            <button data-action="insert-below" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di bawah</button>
-            <button data-action="delrow" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Hapus baris ini</button>
-          </div>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  });
-}
-
-function renderSignRow(form, fIdx, tr){
-  tr.innerHTML = "";
-  const names = Object.keys(TTD);
-  const sharedSign = shiftState.signatures || (shiftState.signatures = {});
-  ROLES.forEach(role=>{
-    const current = sharedSign[role] || "";
-    const nipp = TTD[current] || "";
-    const namesForThisRole = (current && !names.includes(current)) ? [current, ...names] : names;
-    const td = document.createElement("td");
-    td.className = "sign-namecell";
-    td.innerHTML = `
-      <div class="sign-namecell-inner">
-        <div class="name-row">
-          <span class="field-label">Nama:</span>
-          <div class="ttd-combo">
-            <input type="text" class="ttd-name-input" value="${escapeAttr(current)}"
-                   placeholder="nama..." autocomplete="off"
-                   data-form="${fIdx}" data-role="${escapeAttr(role)}">
-            <div class="ttd-suggest-list" data-suggest-for="${fIdx}|${escapeAttr(role)}"></div>
-          </div>
-          <span class="name-print-only">${escapeHtml(current)}</span>
-        </div>
-        <div class="name-row">
-          <span class="field-label">Nipp:</span>
-          <span class="nipp-display">${escapeHtml(nipp)}</span>
-        </div>
-      </div>
-    `;
-    td.querySelector(".ttd-name-input").dataset.namesJson = JSON.stringify(namesForThisRole);
-    tr.appendChild(td);
-  });
-}
-
-function renderFormatBarValues(){
-  document.getElementById("globalFontFamily").value = globalFormat.fontFamily;
-}
-
-function applyColWidths(){
-  const root = document.documentElement.style;
-  root.setProperty("--col-sel", colWidths.sel + "%");
-  root.setProperty("--col-rk", colWidths.rk + "%");
-  root.setProperty("--col-pos", colWidths.pos + "%");
-  root.setProperty("--col-urut", colWidths.urut + "%");
-  root.setProperty("--col-ket", colWidths.ket + "%");
+function loadAll(){
+  const str = localStorage.getItem(STORAGE_KEY);
+  if(str){
+    try{
+      shiftState = JSON.parse(str);
+      if(!shiftState.forms || !Array.isArray(shiftState.forms)) {
+        shiftState = emptyShiftState();
+      }
+    }catch(e){
+      shiftState = emptyShiftState();
+    }
+  } else {
+    shiftState = emptyShiftState();
+  }
+  const fmt = localStorage.getItem(STORAGE_KEY+"_fmt");
+  if(fmt){
+    try{
+      const parsed = JSON.parse(fmt);
+      if(parsed.fontFamily) globalFormat.fontFamily = parsed.fontFamily;
+    }catch(e){}
+  }
+  const w = localStorage.getItem(STORAGE_KEY+"_widths");
+  if(w){
+    try{
+      const p = JSON.parse(w);
+      if(p.rk) colWidths.rk = p.rk;
+      if(p.pos) colWidths.pos = p.pos;
+      if(p.urut) colWidths.urut = p.urut;
+      if(p.ket) colWidths.ket = p.ket;
+    }catch(e){}
+  }
+  history = [JSON.stringify(shiftState)];
+  historyIndex = 0;
+  updateUndoRedoButtons();
 }
 
 function saveAll(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ shiftState, globalFormat, colWidths }));
-  }catch(e){}
-}
-function loadAll(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      if(parsed.shiftState && parsed.shiftState.forms) shiftState = parsed.shiftState;
-      if(parsed.globalFormat) globalFormat = parsed.globalFormat;
-      if(parsed.colWidths) colWidths = parsed.colWidths;
-    }
-  }catch(e){}
-  if(!shiftState || !shiftState.forms) shiftState = emptyShiftState();
-  if(!shiftState.signatures) shiftState.signatures = {};
-  shiftState.forms.forEach(f=>{
-    if(!f.footnote) f.footnote = DEFAULT_FOOTNOTE;
-    if(!f.inpKodeKtg) f.inpKodeKtg = "KTG";
-    if(f.inpNomorAwal === undefined) f.inpNomorAwal = "";
-    f.blocks.forEach(b=>{
-      b.rows.forEach(r=>{ if(r.selected === undefined) r.selected = true; });
-    });
-  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(shiftState));
+  localStorage.setItem(STORAGE_KEY+"_fmt", JSON.stringify(globalFormat));
+  localStorage.setItem(STORAGE_KEY+"_widths", JSON.stringify(colWidths));
 }
 
-document.getElementById("globalFontFamily").addEventListener("change", e=>{
-  globalFormat.fontFamily = e.target.value;
-  render();
-});
+function applyColWidths(){
+  const root = document.documentElement;
+  root.style.setProperty("--col-rk", colWidths.rk + "%");
+  root.style.setProperty("--col-pos", colWidths.pos + "%");
+  root.style.setProperty("--col-urut", colWidths.urut + "%");
+  root.style.setProperty("--col-ket", colWidths.ket + "%");
+}
 
-document.getElementById("formsContainer").addEventListener("input", e=>{
-  const t = e.target;
-  if(t.dataset.metafield){
-    const fIdx = parseInt(t.dataset.form,10);
-    shiftState.forms[fIdx][t.dataset.metafield] = t.value;
-    saveAll();
-    pushHistoryDebounced();
-    return;
-  }
-  if(t.dataset.field){
-    const fIdx = parseInt(t.dataset.form,10);
-    const bIdx = parseInt(t.dataset.block,10);
-    const rIdx = parseInt(t.dataset.row,10);
-    const block = shiftState.forms[fIdx].blocks[bIdx];
-    block.rows[rIdx][t.dataset.field] = t.value;
-    if(t.dataset.field === "posAkhir"){
-      recomputeChain(block.rows, block.posisiAwalPertama);
-    }
-    const focusInfo = {selector: `[data-field="${t.dataset.field}"][data-form="${fIdx}"][data-block="${bIdx}"][data-row="${rIdx}"]`, selStart: t.selectionStart};
-    render();
-    restoreFocusBySelector(focusInfo);
-    return;
-  }
-});
+function render(){
+  applyColWidths();
+  const selectFf = document.getElementById("globalFontFamily");
+  if(selectFf) selectFf.value = globalFormat.fontFamily;
 
-document.getElementById("formsContainer").addEventListener("input", e=>{
-  const t = e.target;
-  if(t.dataset.rkcell !== undefined){
-    const fIdx = parseInt(t.dataset.form,10);
-    const bIdx = parseInt(t.dataset.block,10);
-    const rIdx = parseInt(t.dataset.row,10);
-    const block = shiftState.forms[fIdx].blocks[bIdx];
-    block.rows[rIdx].rkOverride = t.textContent.replace(/\n+$/,"");
-    updateDerivedDisplaysOnly(fIdx, bIdx);
-    saveAll();
-    pushHistoryDebounced();
-    return;
-  }
-  if(t.dataset.ketcell !== undefined){
-    const fIdx = parseInt(t.dataset.form,10);
-    const bIdx = parseInt(t.dataset.block,10);
-    const rIdx = parseInt(t.dataset.row,10);
-    const block = shiftState.forms[fIdx].blocks[bIdx];
-    const rawText = t.textContent.replace(/\n+$/,"");
-    const newPosAkhir = extractLabelFromKet(rawText);
-    const posAkhirChanged = block.rows[rIdx].posAkhir !== newPosAkhir;
-    block.rows[rIdx].ket = rawText;
-    block.rows[rIdx].posAkhir = newPosAkhir;
-    if(posAkhirChanged){
-      recomputeChain(block.rows, block.posisiAwalPertama);
-      block.rows.forEach((row, idx)=>{
-        const posAwalInput = document.querySelector(`input[data-field="posAwal"][data-form="${fIdx}"][data-block="${bIdx}"][data-row="${idx}"]`);
-        if(posAwalInput) posAwalInput.value = row.posAwal;
-        const posAkhirInput = document.querySelector(`input[data-field="posAkhir"][data-form="${fIdx}"][data-block="${bIdx}"][data-row="${idx}"]`);
-        if(posAkhirInput) posAkhirInput.value = row.posAkhir;
+  const container = document.getElementById("formsContainer");
+  container.innerHTML = "";
+
+  shiftState.forms.forEach((form, fIdx)=>{
+    const formWrap = document.createElement("div");
+    formWrap.className = "form-wrap";
+
+    const headBar = document.createElement("div");
+    headBar.className = "form-head-bar";
+    headBar.innerHTML = `<span class="form-label">FORMULIR PERINTAH LANGSIR #${fIdx+1}</span>`;
+    if(shiftState.forms.length > 1){
+      const delBtn = document.createElement("button");
+      delBtn.className = "form-del tiny";
+      delBtn.innerText = "Hapus Form Ini";
+      delBtn.addEventListener("click", ()=>{
+        if(confirm(`Hapus seluruh Formulir Perintah Langsir #${fIdx+1}?`)){
+          shiftState.forms.splice(fIdx, 1);
+          saveAll(); pushHistory(); render();
+        }
       });
+      headBar.appendChild(delBtn);
     }
-    updateDerivedDisplaysOnly(fIdx, bIdx);
-    saveAll();
-    pushHistoryDebounced();
-    return;
-  }
-  if(t.dataset.blockname !== undefined){
-    const fIdx = parseInt(t.dataset.form,10);
-    const bIdx = parseInt(t.dataset.block,10);
-    shiftState.forms[fIdx].blocks[bIdx].name = t.textContent;
-    saveAll();
-    pushHistoryDebounced();
-    return;
-  }
-  if(t.dataset.foot !== undefined){
-    const fIdx = parseInt(t.dataset.form,10);
-    shiftState.forms[fIdx].footnote = t.textContent;
-    saveAll();
-    pushHistoryDebounced();
-    return;
-  }
-});
+    formWrap.appendChild(headBar);
 
-// Kontrol Checkbox Pilihan Baris (Gaya Spreadsheet)
-document.getElementById("formsContainer").addEventListener("change", e=>{
-  const t = e.target;
-  if(t.classList.contains("row-check")){
-    const fIdx = parseInt(t.dataset.form, 10);
-    const bIdx = parseInt(t.dataset.block, 10);
-    const rIdx = parseInt(t.dataset.row, 10);
-    const row = shiftState.forms[fIdx].blocks[bIdx].rows[rIdx];
-    row.selected = t.checked;
-    
-    const tr = t.closest("tr");
-    if(t.checked) tr.classList.add("row-selected");
-    else tr.classList.remove("row-selected");
-    
-    saveAll();
-    pushHistoryDebounced();
-  }
-});
+    const sheet = document.createElement("div");
+    sheet.className = "sheet";
+    sheet.style.fontFamily = globalFormat.fontFamily;
 
-document.getElementById("btnSelectAllRows").addEventListener("click", ()=>{
-  shiftState.forms.forEach(f=>{
-    f.blocks.forEach(b=>{
-      b.rows.forEach(r=>{ r.selected = true; });
+    const rt = romawiBulanTahunForOffset(form.dateOffsetDays);
+    const tglStr = formatHariTanggal(form.dateOffsetDays);
+
+    let html = `
+      <div class="title">PERINTAH LANGSIR</div>
+      <div class="nomor">NOMOR : 
+        <span class="auto">${escapeHtml(form.inpKodeKtg)}/</span><input type="text" class="nomor-inline-input" value="${escapeAttr(form.inpNomorAwal)}" data-field="inpNomorAwal" data-fidx="${fIdx}" style="width:50px;" placeholder="01">/
+        <span class="auto">BRF/LN/${rt.romawi}/${rt.tahun}</span>
+      </div>
+      <div class="meta">
+        <label>EMPLASEMEN</label>
+        <div class="val"><input type="text" value="${escapeAttr(form.inpEmplasemen)}" data-field="inpEmplasemen" data-fidx="${fIdx}"></div>
+        <div class="meta-right-label"><b>TANGGAL</b></div>
+        <div class="date-nav">
+          <button class="date-arrow" data-action="prev-day" data-fidx="${fIdx}">&#9664;</button>
+          <span class="date-display">${tglStr}</span>
+          <button class="date-arrow" data-action="next-day" data-fidx="${fIdx}">&#9654;</button>
+        </div>
+
+        <label>JAM MULAI</label>
+        <div class="val"><input type="text" value="${escapeAttr(form.inpJamMulai)}" data-field="inpJamMulai" data-fidx="${fIdx}" placeholder="22:00"></div>
+        <div class="meta-right-label"><b>JAM SELESAI</b></div>
+        <div class="meta-right-val"><input type="text" value="${escapeAttr(form.inpJamSelesai)}" data-field="inpJamSelesai" data-fidx="${fIdx}" placeholder="05:00"></div>
+      </div>
+
+      <table class="main">
+        <thead>
+          <tr>
+            <th class="col-sel">Sel</th>
+            <th class="col-rk">RANGKAIAN<div class="col-resizer" data-col="rk"></div></th>
+            <th class="col-pos">POS</th>
+            <th class="col-urut">URUT-URUTAN JALAN YANG DILALUI<div class="col-resizer" data-col="urut"></div></th>
+            <th class="col-ket">KETERANGAN / PERINTAH LANGSIR<div class="col-resizer" data-col="ket"></div></th>
+            <th class="col-actions">Aksi</th>
+          </tr>
+        </thead>
+        <tbody data-tbody-for="${fIdx}">
+    `;
+
+    form.blocks.forEach((b, bIdx)=>{
+      html += `
+        <tr class="block-header" data-fidx="${fIdx}" data-bidx="${bIdx}">
+          <td colspan="6">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div class="block-name-edit" contenteditable="true" data-placeholder="NAMA BLOK RANGKAIAN" data-fidx="${fIdx}" data-bidx="${bIdx}">${escapeHtml(b.name)}</div>
+              <div class="block-title-auto auto" style="padding-right:10px;">${escapeHtml(blockTitle(b.rows))}</div>
+              <div class="row-actions">
+                <button data-action="popup-edit" data-fidx="${fIdx}" data-bidx="${bIdx}" class="success small">&#9998; Input Cepat (Pop-up)</button>
+                <button data-action="add-row-manual" data-fidx="${fIdx}" data-bidx="${bIdx}" class="small">+ Baris</button>
+                ${form.blocks.length > 1 ? `<button data-action="del-block" data-fidx="${fIdx}" data-bidx="${bIdx}" class="tiny">Hapus Rangkaian</button>` : ''}
+              </div>
+            </div>
+          </td>
+        </tr>
+      `;
+
+      const rkLabels = computeLokoLabels(b.rows);
+
+      b.rows.forEach((r, rIdx)=>{
+        const ruteInfo = lookupRute(r.posAwal, r.posAkhir);
+        const autoUrut = ruteInfo ? ruteInfo.urut : "";
+        const autoWesel = ruteInfo ? ruteInfo.wesel : "";
+        const isSelected = r.selected !== false;
+
+        html += `
+          <tr class="${isSelected ? 'row-selected' : ''}" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}">
+            <td class="col-sel"><input type="checkbox" class="row-check" ${isSelected ? 'checked' : ''} data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}"></td>
+            <td>
+              <div style="display:flex; align-items:center; gap:2px;">
+                <span class="auto" style="white-space:nowrap;">${escapeHtml(rkLabels[rIdx])}</span>
+                <input type="text" class="cell rk-editable" style="color:var(--muted); font-size:10.5px;" value="${escapeAttr(r.rkOverride)}" placeholder="override..." data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}" data-field="rkOverride">
+              </div>
+            </td>
+            <td class="col-pos"><span class="auto">${escapeHtml(r.posAkhir || "")}</span></td>
+            <td>
+              <div class="auto-line">
+                <span class="auto">${escapeHtml(autoUrut)}</span>
+                ${autoWesel ? `<br><span class="hint">W: ${escapeHtml(autoWesel)}</span>` : ''}
+              </div>
+            </td>
+            <td>
+              <div class="editable-cell" contenteditable="true" data-placeholder="Contoh -> C1: AMBIL 9 KRT" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}">${escapeHtml(r.ket)}</div>
+            </td>
+            <td class="col-actions">
+              <div class="row-menu-wrap">
+                <button class="row-menu-btn" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}">&#8942;</button>
+                <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
+                  <button data-action="insert-row-before" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}">Sisipkan Baris di Atas</button>
+                  <button data-action="insert-row-after" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}">Sisipkan Baris di Bawah</button>
+                  <button data-action="delete-row" data-fidx="${fIdx}" data-bidx="${bIdx}" data-ridx="${rIdx}" style="color:var(--accent);">Hapus Kereta Ini</button>
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      if(b.rows.length === 0){
+        html += `
+          <tr>
+            <td colspan="6" class="open-popup-row">
+              <button data-action="popup-edit" data-fidx="${fIdx}" data-bidx="${bIdx}" class="primary">&#9998; Klik untuk Input Kegiatan Rangkaian</button>
+              <span class="hint">Atau klik "+ Baris" untuk mengetik manual per jalur gerakan</span>
+            </td>
+          </tr>
+        `;
+      }
     });
+
+    html += `
+          <tr class="block-header">
+            <td colspan="6" style="text-align:center; background:var(--panel);">
+              <button data-action="add-block" data-fidx="${fIdx}" class="small">+ Tambah Kelompok Rangkaian Baru</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="footer-block">
+        <div class="footnote-edit" contenteditable="true" data-fidx="${fIdx}">${escapeHtml(form.footnote)}</div>
+        <div class="sign-caption">
+          <div class="cap-receive">MENERIMA PERINTAH</div>
+          <div class="cap-order">YANG MEMBERI PERINTAH</div>
+        </div>
+        <table class="sign">
+          <thead>
+            <tr class="role">
+    `;
+
+    ROLES.forEach(r => { html += `<td>${r}</td>`; });
+    html += `
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="sign-blank-row">
+    `;
+    ROLES.forEach(() => { html += `<td></td>`; });
+    html += `
+            </tr>
+            <tr data-signrow-for="${fIdx}">
+    `;
+    // Baris nama akan dirender oleh renderSignRow secara terpisah untuk mempercepat performa
+    html += `
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    sheet.innerHTML = html;
+    formWrap.appendChild(sheet);
+    container.appendChild(formWrap);
+
+    const signTr = sheet.querySelector(`[data-signrow-for="${fIdx}"]`);
+    if(signTr) renderSignRow(form, fIdx, signTr);
   });
-  render();
+}
+
+function renderSignRow(form, fIdx, trEl){
+  let h = "";
+  ROLES.forEach(role => {
+    const key = fIdx + "|" + role;
+    const curName = shiftState.signatures[key] || "";
+    const curNipp = TTD[curName] || "";
+
+    h += `
+      <td>
+        <div class="name-row">
+          <span class="field-label">Nama:</span>
+          <span class="name-print-only">${escapeHtml(curName)}</span>
+          <div class="ttd-combo">
+            <input type="text" class="ttd-name-input" value="${escapeAttr(curName)}" 
+                   data-fidx="${fIdx}" data-role="${escapeAttr(role)}" placeholder="Ketik nama...">
+            <div class="ttd-suggest-list"></div>
+          </div>
+        </div>
+        <div class="name-row" style="margin-top:2px;">
+          <span class="field-label">NIPP:</span>
+          <span class="nipp-display">${escapeHtml(curNipp || ".....................")}</span>
+        </div>
+      </td>
+    `;
+  });
+  trEl.innerHTML = h;
+}
+
+// ==================== ENGINE EVENT HANDLER DOKUMEN UTAMA ====================
+document.addEventListener("click", e=>{
+  // Tutup semua menu baris jikalau klik di sembarang tempat
+  if(!e.target.classList.contains("row-menu-btn")){
+    document.querySelectorAll(".row-menu.open").forEach(m => m.classList.remove("open"));
+  }
+
+  const target = e.target;
+  const fIdx = parseInt(target.getAttribute("data-fidx") ?? "-1", 10);
+  const bIdx = parseInt(target.getAttribute("data-bidx") ?? "-1", 10);
+  const ridx = parseInt(target.getAttribute("data-ridx") ?? "-1", 10);
+  const action = target.getAttribute("data-action");
+
+  if(target.classList.contains("row-menu-btn")){
+    document.querySelectorAll(".row-menu.open").forEach(m => m.classList.remove("open"));
+    const m = document.querySelector(`[data-menu-for="${fIdx}-${bIdx}-${ridx}"]`);
+    if(m){
+      m.classList.add("open");
+      const rect = target.getBoundingClientRect();
+      m.style.top = (rect.bottom + window.scrollY) + "px";
+      m.style.left = (rect.left - 130 + window.scrollX) + "px";
+    }
+    return;
+  }
+
+  if(!action) return;
+
+  if(action === "prev-day" || action === "next-day"){
+    const form = shiftState.forms[fIdx];
+    if(form){
+      form.dateOffsetDays += (action === "prev-day" ? -1 : 1);
+      saveAll(); pushHistory(); render();
+    }
+  }
+  else if(action === "popup-edit"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    modalCtx = { formIndex: fIdx, blockIndex: bIdx };
+    document.getElementById("modalTitle").innerText = `Input Kegiatan: ${b.name || 'RANGKAIAN'}`;
+    document.getElementById("modalPosAwal").value = b.posisiAwalPertama || "DL";
+    document.getElementById("modalTextarea").value = rowsToText(b.rows);
+    document.getElementById("modalOverlay").classList.add("open");
+    document.getElementById("modalBox").classList.add("open");
+    setTimeout(()=>document.getElementById("modalTextarea").focus(), 60);
+  }
+  else if(action === "add-row-manual"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    let lastPos = b.posisiAwalPertama || "DL";
+    if(b.rows.length > 0) lastPos = b.rows[b.rows.length-1].posAkhir || "";
+    b.rows.push({ posAwal: lastPos, posAkhir: "", ket: "", rkOverride: "", selected: true });
+    saveAll(); pushHistory(); render();
+  }
+  else if(action === "del-block"){
+    if(confirm("Hapus kelompok rangkaian ini?")){
+      shiftState.forms[fIdx].blocks.splice(bIdx, 1);
+      saveAll(); pushHistory(); render();
+    }
+  }
+  else if(action === "add-block"){
+    shiftState.forms[fIdx].blocks.push({ name: "RANGKAIAN BARU", posisiAwalPertama: "DL", rows: [] });
+    saveAll(); pushHistory(); render();
+  }
+  else if(action === "insert-row-before"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    b.rows.splice(ridx, 0, { posAwal: "", posAkhir: "", ket: "", rkOverride: "", selected: true });
+    recomputeChain(b.rows, b.posisiAwalPertama);
+    saveAll(); pushHistory(); render();
+  }
+  else if(action === "insert-row-after"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    b.rows.splice(ridx + 1, 0, { posAwal: "", posAkhir: "", ket: "", rkOverride: "", selected: true });
+    recomputeChain(b.rows, b.posisiAwalPertama);
+    saveAll(); pushHistory(); render();
+  }
+  else if(action === "delete-row"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    b.rows.splice(ridx, 1);
+    recomputeChain(b.rows, b.posisiAwalPertama);
+    saveAll(); pushHistory(); render();
+  }
 });
 
-document.getElementById("btnClearRowSelection").addEventListener("click", ()=>{
-  shiftState.forms.forEach(f=>{
-    f.blocks.forEach(b=>{
-      b.rows.forEach(r=>{ r.selected = false; });
+// Input handling & Sync state
+document.addEventListener("input", e=>{
+  const target = e.target;
+  const fIdx = parseInt(target.getAttribute("data-fidx") ?? "-1", 10);
+  const bIdx = parseInt(target.getAttribute("data-bidx") ?? "-1", 10);
+  const ridx = parseInt(target.getAttribute("data-ridx") ?? "-1", 10);
+  const field = target.getAttribute("data-field");
+
+  if(target.classList.contains("nomor-inline-input") || target.matches(".meta input")){
+    const f = shiftState.forms[fIdx];
+    if(f && field) f[field] = target.value;
+    saveAll(); pushHistoryDebounced();
+  }
+  else if(target.classList.contains("block-name-edit")){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    if(b) b.name = target.innerText.trim();
+    // update judul auto real-time tanpa render ulang penuh
+    const headerTr = target.closest(".block-header");
+    if(headerTr){
+      const titleEl = headerTr.querySelector(".block-title-auto");
+      if(titleEl) titleEl.innerText = blockTitle(b.rows);
+    }
+    saveAll(); pushHistoryDebounced();
+  }
+  else if(target.classList.contains("editable-cell")){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    if(b && b.rows[ridx]){
+      const rawText = target.innerText;
+      b.rows[ridx].ket = rawText;
+      const lbl = extractLabelFromKet(rawText);
+      b.rows[ridx].posAkhir = lbl;
+      recomputeChain(b.blocks ? b.blocks : b.rows, b.posisiAwalPertama);
+      
+      // Update data baris pendukung secara instan
+      const tr = target.closest("tr");
+      if(tr){
+        const posCell = tr.querySelector(".col-pos .auto");
+        if(posCell) posCell.innerText = lbl;
+        const ruteInfo = lookupRute(b.rows[ridx].posAwal, lbl);
+        const urutCell = tr.querySelector(".auto-line");
+        if(urutCell){
+          urutCell.innerHTML = ruteInfo ? `<span class="auto">${escapeHtml(ruteInfo.urut)}</span>${ruteInfo.wesel ? `<br><span class="hint">W: ${escapeHtml(ruteInfo.wesel)}</span>` : ''}` : '';
+        }
+      }
+      
+      // Sync judul rangkaian di atasnya
+      const tbody = target.closest("tbody");
+      if(tbody){
+        const headerTr = tbody.querySelector(`.block-header[data-bidx="${bIdx}"]`);
+        if(headerTr){
+          const titleEl = headerTr.querySelector(".block-title-auto");
+          if(titleEl) titleEl.innerText = blockTitle(b.rows);
+        }
+      }
+      
+      // Sync label LOKO otomatis ke baris berikutnya di bawahnya
+      if(tbody){
+        const labels = computeLokoLabels(b.rows);
+        b.rows.forEach((_, idx)=>{
+          const rowTr = tbody.querySelector(`tr[data-bidx="${bIdx}"][data-ridx="${idx}"]`);
+          if(rowTr){
+            const rkSpan = rowTr.querySelector(".col-rk .auto");
+            if(rkSpan) rkSpan.innerText = labels[idx];
+          }
+        });
+      }
+      saveAll(); pushHistoryDebounced();
+    }
+  }
+  else if(field === "rkOverride"){
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    if(b && b.rows[ridx]){
+      b.rows[ridx].rkOverride = target.value;
+      const tbody = target.closest("tbody");
+      if(tbody){
+        const labels = computeLokoLabels(b.rows);
+        b.rows.forEach((_, idx)=>{
+          const rowTr = tbody.querySelector(`tr[data-bidx="${bIdx}"][data-ridx="${idx}"]`);
+          if(rowTr){
+            const rkSpan = rowTr.querySelector(".col-rk .auto");
+            if(rkSpan) rkSpan.innerText = labels[idx];
+          }
+        });
+      }
+      saveAll(); pushHistoryDebounced();
+    }
+  }
+  else if(target.classList.contains("footnote-edit")){
+    const f = shiftState.forms[fIdx];
+    if(f) f.footnote = target.innerText;
+    saveAll(); pushHistoryDebounced();
+  }
+  else if(target.classList.contains("ttd-name-input")){
+    const role = target.getAttribute("data-role");
+    const val = target.value.toUpperCase();
+    target.value = val;
+    const key = fIdx + "|" + role;
+    shiftState.signatures[key] = val;
+
+    // Sinkronisasi komponen NIPP pendukung
+    const td = target.closest("td");
+    if(td){
+      const nippDisp = td.querySelector(".nipp-display");
+      if(nippDisp) nippDisp.innerText = TTD[val] || ".....................";
+    }
+    saveAll(); pushHistoryDebounced();
+    showTtdSuggestions(target, val);
+  }
+});
+
+// Blur Event (Untuk mendaftarkan history solid saat fokus beralih keluar)
+document.addEventListener("focusout", e=>{
+  if(e.target.matches("[contenteditable='true']") || e.target.matches("input[type='text']")){
+    flushPendingHistory();
+  }
+  if(e.target.classList.contains("ttd-name-input")){
+    setTimeout(()=>{
+      const list = e.target.parentNode.querySelector(".ttd-suggest-list");
+      if(list) list.classList.remove("open");
+    }, 200);
+  }
+});
+
+// Event Checkbox Seleksi Baris
+document.addEventListener("change", e=>{
+  if(e.target.classList.contains("row-check")){
+    const fIdx = parseInt(e.target.getAttribute("data-fidx"), 10);
+    const bIdx = parseInt(e.target.getAttribute("data-bidx"), 10);
+    const ridx = parseInt(e.target.getAttribute("data-ridx"), 10);
+    const b = shiftState.forms[fIdx].blocks[bIdx];
+    if(b && b.rows[ridx]){
+      b.rows[ridx].selected = e.target.checked;
+      const tr = e.target.closest("tr");
+      if(tr){
+        if(e.target.checked) tr.classList.add("row-selected");
+        else tr.classList.remove("row-selected");
+      }
+      saveAll(); pushHistory();
+    }
+  }
+});
+
+// ==================== ENGINE COMBOBOX SUGGESTIONS TTD ====================
+function showTtdSuggestions(inputEl, query){
+  const listEl = inputEl.parentNode.querySelector(".ttd-suggest-list");
+  if(!listEl) return;
+  listEl.innerHTML = "";
+  if(!query){ listEl.classList.remove("open"); return; }
+  const matches = [];
+  Object.keys(TTD).forEach(name=>{
+    if(name.includes(query) || TTD[name].includes(query)){
+      matches.push({ name, nipp: TTD[name] });
+    }
+  });
+  if(matches.length === 0){ listEl.classList.remove("open"); return; }
+  matches.slice(0, 8).forEach(m=>{
+    const div = document.createElement("div");
+    div.className = "ttd-suggest-item";
+    div.innerHTML = `<span>${escapeHtml(m.name)}</span><span class="ttd-suggest-nipp">${escapeHtml(m.nipp)}</span>`;
+    div.addEventListener("mousedown", ()=>{
+      inputEl.value = m.name;
+      const fIdx = inputEl.getAttribute("data-fidx");
+      const role = inputEl.getAttribute("data-role");
+      const key = fIdx + "|" + role;
+      shiftState.signatures[key] = m.name;
+      const td = inputEl.closest("td");
+      if(td){
+        const nippDisp = td.querySelector(".nipp-display");
+        if(nippDisp) nippDisp.innerText = m.nipp || ".....................";
+      }
+      saveAll(); pushHistory();
     });
+    listEl.appendChild(div);
   });
-  render();
+  listEl.classList.add("open");
+}
+
+// ==================== EVENT HANDLER MODAL POPUP ====================
+document.getElementById("modalClose").addEventListener("click", ()=>{
+  document.getElementById("modalOverlay").classList.remove("open");
+  document.getElementById("modalBox").classList.remove("open");
+});
+document.getElementById("modalOverlay").addEventListener("click", ()=>{
+  document.getElementById("modalOverlay").classList.remove("open");
+  document.getElementById("modalBox").classList.remove("open");
+});
+document.getElementById("modalApply").addEventListener("click", ()=>{
+  const fIdx = modalCtx.formIndex;
+  const bIdx = modalCtx.blockIndex;
+  if(fIdx === null || bIdx === null) return;
+  const b = shiftState.forms[fIdx].blocks[bIdx];
+  const posAwalText = document.getElementById("modalPosAwal").value.toUpperCase().trim() || "DL";
+  const rawText = document.getElementById("modalTextarea").value.toUpperCase();
+
+  b.posisiAwalPertama = posAwalText;
+  b.rows = textToRows(rawText, posAwalText);
+
+  document.getElementById("modalOverlay").classList.remove("open");
+  document.getElementById("modalBox").classList.remove("open");
+  saveAll(); pushHistory(); render();
 });
 
-// ENGINE AUTO-SCALING SEBELUM CETAK 1 HALAMAN (BERBASIS JUMLAH BARIS AKTIF KETAT)
+// Fitur drag pada modal head
+(()=>{
+  const head = document.getElementById("modalHead");
+  const box = document.getElementById("modalBox");
+  let isDragging = false, startX, startY, initialLeft, initialTop;
+  head.addEventListener("mousedown", e=>{
+    if(e.target.classList.contains("close-btn")) return;
+    isDragging = true;
+    startX = e.clientX; startY = e.clientY;
+    const rect = box.getBoundingClientRect();
+    initialLeft = rect.left; initialTop = rect.top;
+    box.style.transform = "none";
+    box.style.left = initialLeft + "px";
+    box.style.top = initialTop + "px";
+  });
+  document.addEventListener("mousemove", e=>{
+    if(!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    box.style.left = (initialLeft + dx) + "px";
+    box.style.top = (initialTop + dy) + "px";
+  });
+  document.addEventListener("mouseup", ()=>{ isDragging = false; });
+})();
+
+// ==================== ENGINE AUTO-SCALING SEBELUM CETAK 1 HALAMAN ====================
 document.getElementById("btnPrintSelection").addEventListener("click", ()=>{
   shiftState.forms.forEach((form, fIdx)=>{
     let totalActiveRows = 0;
@@ -1006,7 +1228,6 @@ document.getElementById("btnPrintSelection").addEventListener("click", ()=>{
       const activeInBlock = b.rows.filter(r => r.selected !== false).length;
       totalActiveRows += activeInBlock;
       
-      // Hitung juga baris judul rangkaian sebagai komponen yang memakan ruang
       const tbody = document.querySelector(`[data-tbody-for="${fIdx}"]`);
       if(tbody){
         const headers = tbody.querySelectorAll(".block-header");
@@ -1014,576 +1235,109 @@ document.getElementById("btnPrintSelection").addEventListener("click", ()=>{
           if(activeInBlock === 0) headers[form.blocks.indexOf(b)].classList.add("no-active-rows");
           else {
             headers[form.blocks.indexOf(b)].classList.remove("no-active-rows");
-            totalActiveRows += 1; // Tambah hitungan space untuk header rangkaian yang aktif
+            totalActiveRows += 1; 
           }
         }
       }
     });
 
-    // Cari elemen .sheet di dokumen web untuk memanipulasi --fs dinamis
     const sheets = document.querySelectorAll(".sheet");
     if(sheets[fIdx]){
       let scale = 1.0;
-      
-      // Aturan skala super ketat demi menjamin 1 halaman
       if (totalActiveRows === 0) scale = 1.0;
-      else if (totalActiveRows > 25) scale = 0.55; // Sangat padat, font dikecilkan drastis agar muat
+      else if (totalActiveRows > 25) scale = 0.55; 
       else if (totalActiveRows > 18) scale = 0.65;
       else if (totalActiveRows > 12) scale = 0.75;
       else if (totalActiveRows > 6)  scale = 0.85;
-      else scale = 0.95; // Sedikit kereta tetap diberi ruang aman
+      else scale = 0.95; 
       
       sheets[fIdx].style.setProperty("--fs", scale);
     }
   });
 
-  // Jalankan perintah print native browser
   window.print();
   
-  // Kembalikan skala font tampilan web setelah jendela print ditutup
   const sheets = document.querySelectorAll(".sheet");
   sheets.forEach(s => s.style.setProperty("--fs", "1"));
 });
 
-    // Cari elemen .sheet di dokumen web untuk memanipulasi --fs dinamis
-    const sheets = document.querySelectorAll(".sheet");
-    if(sheets[fIdx]){
-      let scale = 1.0;
-      if(totalActiveRows > 24) scale = 0.65;
-      else if(totalActiveRows > 16) scale = 0.75;
-      else if(totalActiveRows > 10) scale = 0.88;
-      
-      sheets[fIdx].style.setProperty("--fs", scale);
-    }
-  });
-
-  // Jalankan perintah print native browser
-  window.print();
-  
-  // Kembalikan skala font tampilan web setelah jendela print ditutup
-  const sheets = document.querySelectorAll(".sheet");
-  sheets.forEach(s => s.style.setProperty("--fs", "1"));
+// ==================== CONTROL BUTTON BAR ATAS ====================
+document.getElementById("btnSelectAllRows").addEventListener("click", ()=>{
+  shiftState.forms.forEach(f => f.blocks.forEach(b => b.rows.forEach(r => r.selected = true)));
+  saveAll(); pushHistory(); render();
 });
-
-document.getElementById("formsContainer").addEventListener("keydown", e=>{
-  const t = e.target;
-  if(t.dataset.ketcell === undefined) return;
-  if(e.key !== "Enter") return;
-  e.preventDefault();
-  const fIdx = parseInt(t.dataset.form,10);
-  const bIdx = parseInt(t.dataset.block,10);
-  const rIdx = parseInt(t.dataset.row,10);
-  const block = shiftState.forms[fIdx].blocks[bIdx];
-  const rawText = t.textContent.replace(/\n+$/,"");
-  const newPosAkhir = extractLabelFromKet(rawText);
-  const posAkhirChanged = block.rows[rIdx].posAkhir !== newPosAkhir;
-  block.rows[rIdx].ket = rawText;
-  block.rows[rIdx].posAkhir = newPosAkhir;
-  if(posAkhirChanged){
-    recomputeChain(block.rows, block.posisiAwalPertama);
-  }
-  if(rIdx + 1 < block.rows.length){
-    if(posAkhirChanged) render();
-    else { saveAll(); pushHistoryDebounced(); }
-    focusKetCell(fIdx, bIdx, rIdx+1);
-  } else {
-    block.rows.push({posAwal:"", posAkhir:"", ket:"", rkOverride:"", selected: true});
-    recomputeChain(block.rows, block.posisiAwalPertama);
-    render();
-    focusKetCell(fIdx, bIdx, rIdx+1);
-  }
+document.getElementById("btnClearRowSelection").addEventListener("click", ()=>{
+  shiftState.forms.forEach(f => f.blocks.forEach(b => b.rows.forEach(r => r.selected = false)));
+  saveAll(); pushHistory(); render();
 });
-
-function focusKetCell(fIdx, bIdx, rIdx){
-  requestAnimationFrame(()=>{
-    const el = document.querySelector(`[data-ketcell][data-form="${fIdx}"][data-block="${bIdx}"][data-row="${rIdx}"]`);
-    if(el){
-      el.focus();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  });
-}
-
-function focusNavCell(fIdx, bIdx, rIdx, navcol){
-  const target = resolveNavTarget(fIdx, bIdx, rIdx);
-  if(!target) return false;
-  const selector = `[data-navcol="${navcol}"][data-form="${target.fIdx}"][data-block="${target.bIdx}"][data-row="${target.rIdx}"]`;
-  const el = document.querySelector(selector);
-  if(!el) return false;
-  el.focus();
-  if(el.tagName === "INPUT"){
-    el.select();
-  } else if(el.isContentEditable){
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-  return true;
-}
-
-function resolveNavTarget(fIdx, bIdx, rIdx){
-  const form = shiftState.forms[fIdx];
-  if(!form) return null;
-  const block = form.blocks[bIdx];
-  if(!block) return null;
-  if(rIdx < 0){
-    if(bIdx > 0){
-      const prevBlock = form.blocks[bIdx-1];
-      return resolveNavTarget(fIdx, bIdx-1, prevBlock.rows.length - 1);
-    }
-    if(fIdx > 0){
-      const prevForm = shiftState.forms[fIdx-1];
-      const lastBlockIdx = prevForm.blocks.length - 1;
-      const lastBlock = prevForm.blocks[lastBlockIdx];
-      return resolveNavTarget(fIdx-1, lastBlockIdx, lastBlock.rows.length - 1);
-    }
-    return null;
-  }
-  if(rIdx >= block.rows.length){
-    if(bIdx < form.blocks.length - 1){
-      return resolveNavTarget(fIdx, bIdx+1, 0);
-    }
-    if(fIdx < shiftState.forms.length - 1){
-      return resolveNavTarget(fIdx+1, 0, 0);
-    }
-    return null;
-  }
-  return { fIdx, bIdx, rIdx };
-}
-
-function isCaretAtStart(el){
-  const sel = window.getSelection();
-  if(!sel || sel.rangeCount === 0) return true;
-  const range = sel.getRangeAt(0);
-  const pre = range.cloneRange();
-  pre.selectNodeContents(el);
-  pre.setEnd(range.startContainer, range.startOffset);
-  return pre.toString().length === 0;
-}
-function isCaretAtEnd(el){
-  const sel = window.getSelection();
-  if(!sel || sel.rangeCount === 0) return true;
-  const range = sel.getRangeAt(0);
-  const post = range.cloneRange();
-  post.selectNodeContents(el);
-  post.setStart(range.endContainer, range.endOffset);
-  return post.toString().length === 0;
-}
-
-document.getElementById("formsContainer").addEventListener("keydown", e=>{
-  const navAttr = e.target.dataset ? e.target.dataset.navcol : undefined;
-  if(navAttr === undefined) return;
-  if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) return;
-  const t = e.target;
-  const navcol = parseInt(navAttr, 10);
-  const fIdx = parseInt(t.dataset.form, 10);
-  const bIdx = parseInt(t.dataset.block, 10);
-  const rIdx = parseInt(t.dataset.row, 10);
-  if(e.key === "ArrowLeft" || e.key === "ArrowRight"){
-    if(t.tagName === "INPUT"){
-      const atStart = t.selectionStart === 0 && t.selectionEnd === 0;
-      const atEnd = t.selectionStart === t.value.length && t.selectionEnd === t.value.length;
-      if(e.key === "ArrowLeft" && !atStart) return;
-      if(e.key === "ArrowRight" && !atEnd) return;
-    } else if(t.isContentEditable){
-      if(e.key === "ArrowLeft" && !isCaretAtStart(t)) return;
-      if(e.key === "ArrowRight" && !isCaretAtEnd(t)) return;
-    }
-  }
-  let targetRow = rIdx, targetCol = navcol;
-  if(e.key === "ArrowUp") targetRow = rIdx - 1;
-  if(e.key === "ArrowDown") targetRow = rIdx + 1;
-  if(e.key === "ArrowLeft") targetCol = navcol - 1;
-  if(e.key === "ArrowRight") targetCol = navcol + 1;
-  if(targetCol < -1 || targetCol > 3) return;
-  const moved = focusNavCell(fIdx, bIdx, targetRow, targetCol);
-  if(moved){ e.preventDefault(); }
-});
-
-function updateDerivedDisplaysOnly(fIdx, bIdx){
-  const block = shiftState.forms[fIdx].blocks[bIdx];
-  const lokoLabels = computeLokoLabels(block.rows);
-  const title = blockTitle(block.rows);
-  const tbody = document.querySelector(`[data-tbody-for="${fIdx}"]`);
-  if(!tbody) return;
-  const trs = Array.from(tbody.children);
-  let currentBlockIdx = -1;
-  let cursor = 0;
-  for(let i=0;i<trs.length;i++){
-    if(trs[i].classList.contains("block-header")){
-      currentBlockIdx++;
-      cursor = 0;
-      if(currentBlockIdx === bIdx){
-        const titleCell = trs[i].querySelector(".block-title-auto");
-        if(titleCell) titleCell.innerHTML = title || "<span class='hint'>belum ada keterangan</span>";
-      }
-      continue;
-    }
-    if(currentBlockIdx === bIdx){
-      const rkCell = trs[i].querySelector(".rk-editable");
-      if(rkCell && lokoLabels[cursor] !== undefined){
-        rkCell.setAttribute("data-placeholder", lokoLabels[cursor]);
-      }
-      const urutCell = trs[i].querySelector(".auto-line");
-      if(urutCell){
-        const row = block.rows[cursor];
-        const rute = lookupRute(row.posAwal, row.posAkhir);
-        urutCell.innerHTML = rute
-          ? `${rute.urut}${rute.wesel ? " (W: "+rute.wesel.trim()+")" : ""}`
-          : (row.posAwal || row.posAkhir ? "<span class='warn-text'>kombinasi posisi belum ada di tabel RUTE</span>" : "");
-      }
-      cursor++;
-    } else if(currentBlockIdx > bIdx){
-      break;
-    }
-  }
-}
-
-function restoreFocusBySelector(info){
-  const el = document.querySelector(info.selector);
-  if(el){
-    el.focus();
-    if(typeof info.selStart === "number" && el.setSelectionRange){
-      try{ el.setSelectionRange(info.selStart, info.selStart); }catch(e){}
-    }
-  }
-}
-
-document.getElementById("formsContainer").addEventListener("click", e=>{
-  const t = e.target.closest("button");
-  if(!t) return;
-  const action = t.dataset.action;
-  if(!action) return;
-  if(action !== "togglemenu") closeAllRowMenus();
-
-  if(action === "delform"){
-    const fIdx = parseInt(t.dataset.form,10);
-    if(shiftState.forms.length>1){
-      if(confirm(`Hapus Form ${fIdx+1} dari shift ini?`)){
-        shiftState.forms.splice(fIdx,1);
-        render();
-      }
-    }
-    return;
-  }
-  if(action === "date-prev" || action === "date-next"){
-    const fIdx = parseInt(t.dataset.form,10);
-    const form = shiftState.forms[fIdx];
-    form.dateOffsetDays = (form.dateOffsetDays || 0) + (action === "date-next" ? 1 : -1);
-    const dateSpan = t.parentElement.querySelector(".date-display");
-    if(dateSpan) dateSpan.textContent = formatHariTanggal(form.dateOffsetDays);
-    const sheetEl = t.closest(".sheet");
-    if(sheetEl){
-      const { romawi, tahun } = romawiBulanTahunForOffset(form.dateOffsetDays);
-      const romawiEl = sheetEl.querySelector(`[data-nomor-romawi-for="${fIdx}"]`);
-      const tahunEl = sheetEl.querySelector(`[data-nomor-tahun-for="${fIdx}"]`);
-      if(romawiEl) romawiEl.textContent = romawi;
-      if(tahunEl) tahunEl.textContent = tahun;
-    }
-    saveAll();
-    pushHistory();
-    return;
-  }
-  const fIdx = parseInt(t.dataset.form,10);
-  const form = shiftState.forms[fIdx];
-  if(action === "addblock"){
-    let defaultPosAwal = "";
-    const lastBlock = form.blocks[form.blocks.length-1];
-    if(lastBlock && lastBlock.rows && lastBlock.rows.length>0){
-      defaultPosAwal = lastBlock.rows[lastBlock.rows.length-1].posAkhir;
-    }
-    form.blocks.push({ name: "RANGKAIAN BARU", posisiAwalPertama: defaultPosAwal, rows: [] });
-    render();
-    return;
-  }
-  const bIdx = parseInt(t.dataset.block,10);
-  if(bIdx === undefined || isNaN(bIdx)) return;
-  const block = form.blocks[bIdx];
-  if(action === "togglemenu"){
-    const menu = document.querySelector(`[data-menu-for="${t.dataset.form}-${t.dataset.block}-${t.dataset.row}"]`);
-    if(menu){
-      const alreadyOpen = menu.classList.contains("open");
-      closeAllRowMenus();
-      if(!alreadyOpen){
-        const rect = t.getBoundingClientRect();
-        menu.style.top = (rect.bottom + 4) + "px";
-        let left = rect.right - 160;
-        left = Math.max(4, Math.min(window.innerWidth - 164, left));
-        menu.style.left = left + "px";
-        menu.classList.add("open");
-      }
-    }
-    return;
-  }
-  if(action === "editket"){ openModal(fIdx, bIdx); return; }
-  if(action === "addrow-end"){
-    block.rows.push({posAwal:"", posAkhir:"", ket:"", rkOverride:"", selected: true});
-    recomputeChain(block.rows, block.posisiAwalPertama);
-  } else if(action === "insert-above"){
-    const rIdx = parseInt(t.dataset.row,10);
-    block.rows.splice(rIdx, 0, {posAwal:"", posAkhir:"", ket:"", rkOverride:"", selected: true});
-    recomputeChain(block.rows, block.posisiAwalPertama);
-  } else if(action === "insert-below"){
-    const rIdx = parseInt(t.dataset.row,10);
-    block.rows.splice(rIdx+1, 0, {posAwal:"", posAkhir:"", ket:"", rkOverride:"", selected: true});
-    recomputeChain(block.rows, block.posisiAwalPertama);
-  } else if(action === "delrow"){
-    const rIdx = parseInt(t.dataset.row,10);
-    block.rows.splice(rIdx,1);
-    recomputeChain(block.rows, block.posisiAwalPertama);
-  } else if(action === "delblock"){
-    if(form.blocks.length>1){ form.blocks.splice(bIdx,1); }
-    else { alert("Minimal harus ada satu rangkaian."); return; }
-  }
-  render();
-});
-
-function closeAllRowMenus(){ document.querySelectorAll(".row-menu.open").forEach(m=>m.classList.remove("open")); }
-document.addEventListener("click", e=>{
-  if(!e.target.closest(".row-menu-wrap")) closeAllRowMenus();
-});
-
-function ttdSuggestEl(fIdx, role){
-  return document.querySelector(`.ttd-suggest-list[data-suggest-for="${fIdx}|${role}"]`);
-}
-function ttdFilterNames(namesList, query){
-  const q = query.trim().toUpperCase();
-  if(!q) return namesList.slice(0, 8);
-  return namesList.filter(n=>{
-    const nipp = TTD[n] || "";
-    return n.toUpperCase().includes(q) || nipp.includes(q);
-  }).slice(0, 8);
-}
-function ttdRenderSuggestions(input){
-  const fIdx = input.dataset.form;
-  const role = input.dataset.role;
-  const box = ttdSuggestEl(fIdx, role);
-  if(!box) return;
-  let namesList = [];
-  try{ namesList = JSON.parse(input.dataset.namesJson || "[]"); }catch(e){}
-  const matches = ttdFilterNames(namesList, input.value);
-  if(matches.length === 0){
-    box.innerHTML = ""; box.classList.remove("open"); return;
-  }
-  box.innerHTML = matches.map(n=>{
-    const nipp = TTD[n] || "";
-    return `<div class="ttd-suggest-item" data-pick="${escapeAttr(n)}">${escapeHtml(n)}${nipp ? ` <span class="ttd-suggest-nipp">${escapeHtml(nipp)}</span>` : ""}</div>`;
-  }).join("");
-  box.classList.add("open");
-}
-function ttdCommitValue(input, value){
-  const role = input.dataset.role;
-  shiftState.signatures[role] = value;
-  input.value = value;
-  const fIdx = parseInt(input.dataset.form, 10);
-  const box = ttdSuggestEl(fIdx, role);
-  if(box){ box.innerHTML = ""; box.classList.remove("open"); }
-  document.querySelectorAll(`.ttd-name-input[data-role="${cssEscapeAttr(role)}"]`).forEach(otherInput=>{
-    if(otherInput !== input) otherInput.value = value;
-    const td = otherInput.closest(".sign-namecell");
-    if(td){
-      const nippEl = td.querySelector(".nipp-display");
-      if(nippEl) nippEl.textContent = TTD[value] || "";
-      const printEl = td.querySelector(".name-print-only");
-      if(printEl) printEl.textContent = value;
-    }
-  });
-  saveAll();
-  pushHistoryDebounced();
-}
-function cssEscapeAttr(s){ return String(s).replace(/(["\\])/g, "\\$1"); }
-
-document.getElementById("formsContainer").addEventListener("input", e=>{
-  const t = e.target;
-  if(t.classList && t.classList.contains("ttd-name-input")) ttdRenderSuggestions(t);
-});
-document.getElementById("formsContainer").addEventListener("click", e=>{
-  const item = e.target.closest(".ttd-suggest-item");
-  if(item){
-    const input = item.closest(".ttd-combo").querySelector(".ttd-name-input");
-    ttdCommitValue(input, item.dataset.pick);
-    return;
-  }
-  if(!e.target.closest(".ttd-combo")){
-    document.querySelectorAll(".ttd-suggest-list.open").forEach(b=>{ b.innerHTML=""; b.classList.remove("open"); });
-  }
-});
-document.getElementById("formsContainer").addEventListener("focus", e=>{
-  const t = e.target;
-  if(t.classList && t.classList.contains("ttd-name-input")) ttdRenderSuggestions(t);
-}, true);
-document.getElementById("formsContainer").addEventListener("blur", e=>{
-  const t = e.target;
-  if(!(t.classList && t.classList.contains("ttd-name-input"))) return;
-  setTimeout(()=>{
-    const box = ttdSuggestEl(t.dataset.form, t.dataset.role);
-    if(box){ box.innerHTML = ""; box.classList.remove("open"); }
-    const typed = t.value.trim();
-    let namesList = [];
-    try{ namesList = JSON.parse(t.dataset.namesJson || "[]"); }catch(err){}
-    const exactMatch = namesList.find(n => n.toUpperCase() === typed.toUpperCase());
-    if(typed === ""){
-      ttdCommitValue(t, "");
-    } else if(exactMatch){
-      ttdCommitValue(t, exactMatch);
-    } else {
-      const lastValid = shiftState.signatures[t.dataset.role] || "";
-      t.value = lastValid;
-    }
-  }, 150);
-}, true);
-
-document.getElementById("btnAddForm").addEventListener("click", ()=>{
-  shiftState.forms.push(emptyFormState());
-  render();
-});
-document.getElementById("btnReset").addEventListener("click", ()=>{
-  if(confirm(`Reset seluruh isi form untuk "${ACTIVE_SHIFT_LABEL}" ke kondisi kosong?`)){
-    shiftState = emptyShiftState();
-    render();
-  }
+document.getElementById("globalFontFamily").addEventListener("change", e=>{
+  globalFormat.fontFamily = e.target.value;
+  saveAll(); render();
 });
 document.getElementById("btnResetColWidths").addEventListener("click", ()=>{
-  colWidths = { sel:4, rk:12, pos:7, urut:27, ket:30 };
-  applyColWidths();
-  saveAll();
+  colWidths = { rk:12, pos:7, urut:27, ket:30 };
+  saveAll(); render();
+});
+document.getElementById("btnReset").addEventListener("click", ()=>{
+  if(confirm("Reset seluruh data dinas shift ini ke pengaturan kosong awal?")){
+    localStorage.removeItem(STORAGE_KEY);
+    loadAll(); render();
+  }
+});
+document.getElementById("btnAddForm").addEventListener("click", ()=>{
+  shiftState.forms.push(emptyFormState());
+  saveAll(); pushHistory(); render();
 });
 
+// Export & Import Data JSON Shift
 document.getElementById("btnExportShift").addEventListener("click", ()=>{
-  const blob = new Blob([JSON.stringify(shiftState, null, 2)], {type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  const d = new Date();
-  const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  a.href = url;
-  a.download = `perintah-langsir-malam_${dateStr}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(shiftState));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", `Langsir_${ACTIVE_SHIFT_LABEL.replace(" ","_")}.json`);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
 });
-document.getElementById("btnImportShift").addEventListener("click", ()=>{ document.getElementById("fileImport").click(); });
-document.getElementById("fileImport").addEventListener("change", (e)=>{
+document.getElementById("btnImportShift").addEventListener("click", ()=>{
+  document.getElementById("fileImport").click();
+});
+document.getElementById("fileImport").addEventListener("change", e=>{
   const file = e.target.files[0];
   if(!file) return;
   const reader = new FileReader();
-  reader.onload = (ev)=>{
+  reader.onload = e=>{
     try{
-      const parsed = JSON.parse(ev.target.result);
-      if(!parsed.forms){ throw new Error("format tidak sesuai (tidak ada 'forms')"); }
-      shiftState = parsed;
-      render();
-    }catch(err){ alert("Gagal membaca file JSON: " + err.message); }
+      const parsed = JSON.parse(e.target.result);
+      if(parsed && parsed.forms && Array.isArray(parsed.forms)){
+        shiftState = parsed;
+        saveAll(); pushHistory(); render();
+        alert("Data shift berhasil di-import!");
+      } else { alert("Format file JSON tidak valid."); }
+    }catch(err){ alert("Gagal membaca file JSON."); }
   };
   reader.readAsText(file);
   e.target.value = "";
 });
 
-function openModal(formIndex, blockIndex){
-  modalCtx = { formIndex, blockIndex };
-  const block = shiftState.forms[formIndex].blocks[blockIndex];
-  document.getElementById("modalTitle").textContent = "Edit Keterangan — " + (block.name || "Rangkaian");
-  document.getElementById("modalTextarea").value = rowsToText(block.rows);
-  document.getElementById("modalPosAwal").value = block.posisiAwalPertama || "";
-  document.getElementById("modalOverlay").classList.add("open");
-  document.getElementById("modalBox").classList.add("open");
-  resetModalPosition();
-}
-function closeModal(){
-  document.getElementById("modalOverlay").classList.remove("open");
-  document.getElementById("modalBox").classList.remove("open");
-  modalCtx = { formIndex: null, blockIndex: null };
-}
-function resetModalPosition(){
-  const box = document.getElementById("modalBox");
-  box.style.top = "90px"; box.style.left = "50%"; box.style.transform = "translateX(-50%)";
-}
-document.getElementById("modalClose").addEventListener("click", closeModal);
-document.getElementById("modalOverlay").addEventListener("click", closeModal);
-document.getElementById("modalApply").addEventListener("click", ()=>{
-  if(modalCtx.formIndex === null) return;
-  const form = shiftState.forms[modalCtx.formIndex];
-  const block = form.blocks[modalCtx.blockIndex];
-  const posAwal = document.getElementById("modalPosAwal").value.trim();
-  const text = document.getElementById("modalTextarea").value;
-  block.posisiAwalPertama = posAwal;
-  block.rows = textToRows(text, posAwal);
-  const nextBlock = form.blocks[modalCtx.blockIndex+1];
-  if(nextBlock && block.rows.length>0 && !nextBlock.posisiAwalPertama){
-    nextBlock.posisiAwalPertama = block.rows[block.rows.length-1].posAkhir;
-  }
-  closeModal();
-  render();
-});
-
-(function setupDrag(){
-  const head = document.getElementById("modalHead");
-  const box = document.getElementById("modalBox");
-  let dragging = false, offsetX = 0, offsetY = 0;
-  head.addEventListener("mousedown", (e)=>{
-    dragging = true;
-    const rect = box.getBoundingClientRect();
-    offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
-    box.style.transform = "none"; box.style.left = rect.left + "px"; box.style.top = rect.top + "px";
-    e.preventDefault();
-  });
-  document.addEventListener("mousemove", (e)=>{
-    if(!dragging) return;
-    let x = Math.max(0, Math.min(window.innerWidth - box.offsetWidth, e.clientX - offsetX));
-    let y = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - offsetY));
-    box.style.left = x + "px"; box.style.top = y + "px";
-  });
-  document.addEventListener("mouseup", ()=>{ dragging = false; });
-  head.addEventListener("touchstart", (e)=>{
-    const touch = e.touches[0]; dragging = true;
-    const rect = box.getBoundingClientRect();
-    offsetX = touch.clientX - rect.left; offsetY = touch.clientY - rect.top;
-    box.style.transform = "none"; box.style.left = rect.left + "px"; box.style.top = rect.top + "px";
-  }, {passive:true});
-  document.addEventListener("touchmove", (e)=>{
-    if(!dragging) return;
-    const touch = e.touches[0];
-    let x = Math.max(0, Math.min(window.innerWidth - box.offsetWidth, touch.clientX - offsetX));
-    let y = Math.max(0, Math.min(window.innerHeight - 40, touch.clientY - offsetY));
-    box.style.left = x + "px"; box.style.top = y + "px";
-  }, {passive:true});
-  document.addEventListener("touchend", ()=>{ dragging = false; });
-})();
-
-(function setupColResize(){
+// Resizing Kolom Spreadsheet manual
+(()=>{
   let resizing = null;
   document.addEventListener("mousedown", e=>{
-    const handle = e.target.closest(".col-resizer");
-    if(!handle) return;
-    const th = handle.closest("th");
-    const table = th.closest("table");
-    resizing = {
-      key: handle.dataset.colkey,
-      startX: e.clientX,
-      tableWidth: table.getBoundingClientRect().width,
-      startWidths: { ...colWidths }
-    };
+    if(!e.target.classList.contains("col-resizer")) return;
+    const key = e.target.getAttribute("data-col");
+    resizing = { key, startX: e.clientX, startWidths: { ...colWidths } };
     e.preventDefault();
   });
   document.addEventListener("mousemove", e=>{
     if(!resizing) return;
-    const deltaPx = e.clientX - resizing.startX;
-    const deltaPct = (deltaPx / resizing.tableWidth) * 100;
-    if(resizing.key === "sel"){
-      colWidths.sel = clampPct(resizing.startWidths.sel + deltaPct);
-    } else if(resizing.key === "rk"){
+    const deltaX = e.clientX - resizing.startX;
+    const containerWidth = document.querySelector("table.main")?.clientWidth || 1000;
+    const deltaPct = (deltaX / containerWidth) * 100;
+
+    if(resizing.key === "rk"){
       colWidths.rk = clampPct(resizing.startWidths.rk + deltaPct);
-    } else if(resizing.key === "pos1" || resizing.key === "pos2"){
-      colWidths.pos = clampPct(resizing.startWidths.pos + deltaPct);
-    } else if(resizing.key === "urut"){
+    } else if(resizing.key === "urut") {
       colWidths.urut = clampPct(resizing.startWidths.urut + deltaPct);
     } else if(resizing.key === "ket"){
       colWidths.ket = clampPct(resizing.startWidths.ket + deltaPct);
@@ -1601,8 +1355,7 @@ document.getElementById("btnRedo").addEventListener("click", doRedo);
 document.addEventListener("keydown", e=>{
   const isCtrlOrCmd = e.ctrlKey || e.metaKey;
   if(!isCtrlOrCmd) return;
-  if(e.key === "z" || e.key === "Z"){
-    if(e.shiftKey){ e.preventDefault(); doRedo(); }
+  if(e.key === "z" || e.key === "Z"){\n    if(e.shiftKey){ e.preventDefault(); doRedo(); }
     else { e.preventDefault(); doUndo(); }
   } else if(e.key === "y" || e.key === "Y"){
     e.preventDefault(); doRedo();
@@ -1626,10 +1379,14 @@ async function loadTTDFromGithub(){
   }catch(e){}
 }
 
-loadAll();
-render();
-loadTTDFromGithub();
-pushHistory();
+// Inisialisasi awal aplikasi saat load halaman
+window.addEventListener("DOMContentLoaded", ()=>{
+  loadAll();
+  render();
+  loadTTDFromGithub();
+});
 </script>
 </body>
 </html>
+}
+}
