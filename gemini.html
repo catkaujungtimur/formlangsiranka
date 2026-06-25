@@ -219,19 +219,16 @@
     .modal-box{ width:94vw; }
   }
 
-  /* ==================== SPREADSHEET PRINT ENGINE (TOTAL FIX) ==================== */
+/* ==================== SPREADSHEET PRINT ENGINE (EFFICIENT CLEAN) ==================== */
   @media print {
     @page {
       size: A4 portrait;
-      margin: 0mm !important; /* Margin nol agar kontrol halaman dipegang penuh oleh CSS */
+      margin: 8mm 8mm 8mm 8mm; /* Batas margin kertas aman */
     }
     body {
       background: #fff !important;
       padding: 0 !important;
       margin: 0 !important;
-      width: 210mm;
-      height: 297mm;
-      overflow: hidden; /* Mencegah jebol ke halaman berikutnya */
     }
     .toolbar, .format-bar, .add-form-row, .form-head-bar, .btns, 
     .col-actions, .col-resizer, .open-popup-row, .row-actions, .row-menu-wrap {
@@ -239,43 +236,26 @@
     }
     .app {
       max-width: 100% !important;
-      width: 210mm !important;
-      height: 297mm !important;
+      width: 100% !important;
       margin: 0 !important;
       padding: 0 !important;
     }
-    
-    /* Inti Solusi: Mengunci Form tepat setinggi 1 halaman kertas A4 */
     .form-wrap {
-      width: 210mm !important;
-      height: 297mm !important;
+      width: 100% !important;
+      height: auto !important; /* Biarkan mengalir alami agar tidak memicu halaman baru */
       page-break-inside: avoid !important;
       page-break-after: always !important;
-      box-sizing: border-box !important;
-      padding: 12mm 12mm 12mm 12mm !important; /* Pindahkan margin kertas ke padding kontainer */
-      display: flex !important;
-      flex-direction: column !important; /* Susun komponen dari atas ke bawah */
-      justify-content: space-between !important;
       background: #fff !important;
     }
-
     .sheet {
       border: none !important;
       padding: 0 !important;
       width: 100% !important;
-      height: 100% !important;
-      display: flex !important;
-      flex-direction: column !important;
-      flex: 1 !important;
     }
-
-    /* Memaksa elemen tabel mengambil sisa ruang secara fleksibel tanpa mendorong tanda tangan */
     table.main {
       width: 100% !important;
-      flex: 1 !important; 
-      margin-bottom: 8px !important;
+      margin-bottom: 12px !important;
     }
-
     /* Sembunyikan baris data yang TIDAK dipilih */
     table.main tbody tr:not(.row-selected):not(.block-header) {
       display: none !important;
@@ -288,14 +268,11 @@
     tr.block-header.no-active-rows {
       display: none !important;
     }
-    
-    /* Kunci area footer tanda tangan agar selalu berada di paling bawah halaman kertas */
     .footer-block {
-      margin-top: auto !important; 
       width: 100% !important;
       page-break-inside: avoid !important;
+      margin-top: 15px !important; /* Jarak wajar antara tabel dan TTD */
     }
-
     .name-print-only {
       display: inline-block !important;
     }
@@ -1021,26 +998,52 @@ document.getElementById("btnClearRowSelection").addEventListener("click", ()=>{
   render();
 });
 
-// ENGINE AUTO-SCALING SEBELUM CETAK 1 HALAMAN
+// ENGINE AUTO-SCALING SEBELUM CETAK 1 HALAMAN (BERBASIS JUMLAH BARIS AKTIF KETAT)
 document.getElementById("btnPrintSelection").addEventListener("click", ()=>{
-  // Hitung sebaran baris pilihan tiap form untuk kalkulasi skala otomatis
   shiftState.forms.forEach((form, fIdx)=>{
     let totalActiveRows = 0;
     form.blocks.forEach(b=>{
       const activeInBlock = b.rows.filter(r => r.selected !== false).length;
       totalActiveRows += activeInBlock;
       
-      // Ambil elemen header blok di DOM
+      // Hitung juga baris judul rangkaian sebagai komponen yang memakan ruang
       const tbody = document.querySelector(`[data-tbody-for="${fIdx}"]`);
       if(tbody){
-        // Beri tanda flag pada block-header jika di dalamnya kosong/tidak ada baris aktif
         const headers = tbody.querySelectorAll(".block-header");
         if(headers[form.blocks.indexOf(b)]){
           if(activeInBlock === 0) headers[form.blocks.indexOf(b)].classList.add("no-active-rows");
-          else headers[form.blocks.indexOf(b)].classList.remove("no-active-rows");
+          else {
+            headers[form.blocks.indexOf(b)].classList.remove("no-active-rows");
+            totalActiveRows += 1; // Tambah hitungan space untuk header rangkaian yang aktif
+          }
         }
       }
     });
+
+    // Cari elemen .sheet di dokumen web untuk memanipulasi --fs dinamis
+    const sheets = document.querySelectorAll(".sheet");
+    if(sheets[fIdx]){
+      let scale = 1.0;
+      
+      // Aturan skala super ketat demi menjamin 1 halaman
+      if (totalActiveRows === 0) scale = 1.0;
+      else if (totalActiveRows > 25) scale = 0.55; // Sangat padat, font dikecilkan drastis agar muat
+      else if (totalActiveRows > 18) scale = 0.65;
+      else if (totalActiveRows > 12) scale = 0.75;
+      else if (totalActiveRows > 6)  scale = 0.85;
+      else scale = 0.95; // Sedikit kereta tetap diberi ruang aman
+      
+      sheets[fIdx].style.setProperty("--fs", scale);
+    }
+  });
+
+  // Jalankan perintah print native browser
+  window.print();
+  
+  // Kembalikan skala font tampilan web setelah jendela print ditutup
+  const sheets = document.querySelectorAll(".sheet");
+  sheets.forEach(s => s.style.setProperty("--fs", "1"));
+});
 
     // Cari elemen .sheet di dokumen web untuk memanipulasi --fs dinamis
     const sheets = document.querySelectorAll(".sheet");
