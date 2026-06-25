@@ -253,27 +253,26 @@
     }
 
     .form-wrap{ margin:0 !important; }
-    /* CATATAN: sebelumnya di sini ada rule
-       ".form-wrap + .form-wrap{ page-break-before:always; }" supaya
-       1 form = 1 halaman. Itu DIHAPUS dengan sengaja -- sekarang
-       maunya kebalikan: SEMUA form (berapa pun jumlahnya) dipaksa
-       muat dalam 1 halaman yang sama, dengan cara di-scale sebagai
-       SATU KESATUAN lewat #formsContainer (lihat .sheet di bawah
-       untuk alasan kenapa transform dipasang di situ, bukan di sini). */
-
-    #formsContainer{
-      transform-origin: top center;
-      /* --print-scale dihitung JS dari TOTAL tinggi semua form,
-         bukan per form lagi -- supaya rasio antar form tetap sama
-         (form 1 & form 2 mengecil/membesar dengan persentase sama). */
-      transform: scale(var(--print-scale, 1));
-      /* lebar dasar sebelum di-scale harus sama dengan lebar area
-         cetak (lebar kertas - margin kiri/kanan) -- supaya saat
-         di-scale UP (form sedikit/pendek) hasilnya tidak melebar
-         keluar kertas, dan saat di-scale DOWN tetap center rapi. */
-      width: 192mm; /* 210mm (A4) - 9mm*2 margin, sama dengan @page */
-      margin: 0 auto;
-    }
+    /* CATATAN SEJARAH (penting, jangan diulang lagi):
+       1) Versi pertama: page-break-before:always antar form -> gagal,
+          bikin form pendek tetap dipaksa pindah halaman sendiri.
+       2) Versi kedua: transform:scale() pada #formsContainer -> KELIHATANNYA
+          jalan (mengecil) tapi TERNYATA TIDAK mengubah jumlah halaman cetak
+          sama sekali. Sebabnya: transform di CSS adalah operasi PAINT,
+          dilakukan SETELAH browser selesai menghitung layout & pagination.
+          Box yang "dipesan" di alur dokumen tetap berukuran ASLI (sebelum
+          discale), jadi kalau asli > 1 halaman, browser tetap memutus jadi
+          2 halaman -- isinya cuma kelihatan kecil mengambang di tengah,
+          dan lebar pun tidak pas kertas karena alasan yang sama.
+       3) Versi sekarang (BENAR): scaling lewat variabel --fs yang SUDAH
+          ADA di .sheet sejak awal (lihat var(--fs) di hampir semua
+          font-size/padding/margin pada elemen di dalam .sheet). --fs
+          ini bukan transform -- dia benar-benar mengecilkan UKURAN ASLI
+          tiap elemen (font-size, padding, dst), jadi scrollHeight yang
+          dihasilkan ASLI sudah kecil, bukan cuma kelihatan kecil. Itu
+          artinya browser MEMANG menghitung kontennya pendek, dan tidak
+          akan memutus ke halaman 2. Nilai --fs dihitung JS secara
+          iteratif (lihat fitToOnePage() di bagian script). */
 
     .sheet{
       border:none !important;
@@ -1759,6 +1758,42 @@ pushHistory(); // simpan state awal sebagai titik undo paling awal
       tampilan editor di layar tidak ikut berubah ukuran.
 ==================================================================== */
 
+/* ====================================================================
+   CETAK: SEMUA form dipaksa muat dalam 1 halaman ("fit to page")
+   ------------------------------------------------------------------
+   PENTING -- riwayat kegagalan sebelum sampai ke pendekatan ini ada
+   di komentar CSS @media print (cari ".sheet{" di sana). Ringkasnya:
+   transform:scale() TIDAK BISA dipakai untuk fit-to-page, karena
+   transform cuma operasi visual/paint -- tidak pernah mengubah box
+   layout yang dipakai browser untuk menghitung jumlah halaman cetak.
+
+   Solusinya: turunkan/naikkan variabel CSS --fs yang SUDAH ADA di
+   .sheet (lihat ":root, .sheet{ --fs:1; }" dan var(--fs) yang dipakai
+   di font-size/padding/margin hampir semua elemen turunan .sheet).
+   --fs ini BUKAN transform -- dia mengubah nilai asli font-size/
+   padding lewat calc(), jadi browser menghitung ulang layout dengan
+   ukuran yang memang sudah lebih kecil/besar secara nyata. scrollHeight
+   yang dihasilkan pun ASLI sudah sesuai, sehingga keputusan pagination
+   browser (1 atau 2 halaman) ikut benar.
+
+   Kenapa harus dicari lewat iterasi (binary search), bukan dihitung
+   sekali pakai rumus?
+   Hubungan antara --fs dan tinggi akhir TIDAK linear sempurna -- ada
+   elemen dengan ukuran tetap yang tidak ikut --fs (border table 1px,
+   line-height rasio tertentu, dst). Daripada menebak rumus konversi
+   yang rapuh (sumber masalah scale-otomatis sejak awal percakapan
+   ini), kita ukur LANGSUNG: set --fs, ukur scrollHeight aktual, kalau
+   masih kepanjangan turunkan lagi, kalau ada sisa ruang naikkan --
+   diulang sampai konvergen (cukup 10-14 kali, sangat cepat di browser).
+
+   Kenapa --fs yang sama dipasang ke SEMUA .sheet sekaligus (bukan
+   per form sendiri-sendiri)?
+   Supaya ukuran font antar form tetap konsisten satu sama lain (form
+   1 dan form 2 sama besarnya) -- sesuai yang diminta: semua form
+   digabung jadi satu kesatuan yang harus pas dalam 1 halaman, bukan
+   dihitung halaman per form lagi.
+==================================================================== */
+
 function mmToPxRatio(){
   const ruler = document.createElement("div");
   ruler.style.position = "absolute";
@@ -1771,40 +1806,112 @@ function mmToPxRatio(){
   return pxPer100mm / 100; // px per 1mm
 }
 
-function prepareSheetsForPrint(){
+function setAllSheetsFs(fs){
+  document.querySelectorAll(".sheet").forEach(sheet=>{
+    sheet.style.setProperty("--fs", fs.toFixed(4));
+  });
+}
+
+function totalSheetsHeightPx(){
+  let total = 0;
+  document.querySelectorAll(".form-wrap").forEach(wrap=>{
+    total += wrap.scrollHeight;
+  });
+  return total;
+}
+
+// Selector elemen UI editor yang TIDAK boleh ikut tercetak/terhitung
+// tingginya. Sengaja didaftarkan di JS (bukan cuma diandalkan dari
+// CSS @media print) karena event "beforeprint" TERBUKTI terjadi
+// SEBELUM browser menerapkan stylesheet @media print -- terutama di
+// Firefox, yang malah sama sekali tidak menerapkan print stylesheet
+// saat beforeprint berjalan (sumber: dokumentasi MDN & laporan bug
+// Mozilla/Chromium soal ini). Kalau cuma andalkan display:none dari
+// CSS, scrollHeight yang diukur di sini akan ikut menghitung tinggi
+// toolbar/menu editor yang sebenarnya tidak akan tercetak -- membuat
+// --fs yang dihasilkan terlalu kecil dari yang seharusnya.
+const PRINT_HIDE_SELECTOR = [
+  ".toolbar", ".format-bar", ".form-head-bar", ".add-form-row",
+  ".row-menu", ".row-actions", ".col-resizer", ".date-arrow",
+  ".modal-overlay", ".modal-box", ".col-actions", ".ttd-combo"
+].join(",");
+
+let _hiddenForPrintEls = [];
+let _isHiddenForPrint = false; // guard: cegah simpan ulang state display kalau sudah disembunyikan
+
+function hideEditorUiForPrint(){
+  if(_isHiddenForPrint) return; // sudah disembunyikan -> jangan timpa state aslinya
+  _isHiddenForPrint = true;
+
+  _hiddenForPrintEls = Array.from(document.querySelectorAll(PRINT_HIDE_SELECTOR));
+  _hiddenForPrintEls.forEach(el=>{
+    el.dataset._prevDisplay = el.style.display; // simpan supaya bisa dikembalikan persis
+    el.style.display = "none";
+  });
+  // .name-print-only butuh ditampilkan (default-nya disembunyikan di
+  // mode editor) -- pasangan dari .ttd-combo yang baru disembunyikan
+  // di atas. Tanpa ini, kolom nama TTD akan terlihat kosong saat diukur.
+  document.querySelectorAll(".name-print-only").forEach(el=>{
+    el.dataset._prevDisplay = el.style.display;
+    el.style.display = "inline-block";
+  });
+}
+
+function restoreEditorUiAfterPrint(){
+  if(!_isHiddenForPrint) return; // belum pernah disembunyikan -> tidak ada yang perlu di-restore
+  _isHiddenForPrint = false;
+
+  _hiddenForPrintEls.forEach(el=>{
+    el.style.display = el.dataset._prevDisplay || "";
+    delete el.dataset._prevDisplay;
+  });
+  document.querySelectorAll(".name-print-only").forEach(el=>{
+    el.style.display = el.dataset._prevDisplay || "";
+    delete el.dataset._prevDisplay;
+  });
+  _hiddenForPrintEls = [];
+}
+
+function fitToOnePage(){
+  hideEditorUiForPrint();
+
   const pxPerMm = mmToPxRatio();
   const PAGE_H_MM = 297; // A4 portrait
-  const PAGE_W_MM = 210;
   const MARGIN_MM = 9;   // sama dengan @page margin di CSS
   const usableHeightPx = (PAGE_H_MM - MARGIN_MM * 2) * pxPerMm;
-  const usableWidthPx  = (PAGE_W_MM - MARGIN_MM * 2) * pxPerMm;
 
-  const container = document.getElementById("formsContainer");
-  if(!container) return;
+  // Batas pencarian --fs. 0.25 = sangat kecil tapi masih relatif
+  // terbaca; 3 = jaga-jaga kalau kontennya sangat sedikit (1-2 baris)
+  // supaya bisa membesar signifikan untuk memenuhi halaman, sesuai
+  // permintaan "diperbesar supaya memenuhi 1 halaman penuh".
+  let lo = 0.25, hi = 3;
+  let bestFs = 1;
 
-  // reset dulu supaya pengukuran tinggi/lebar tidak kena scale lama
-  container.style.setProperty("--print-scale", "1");
-
-  const contentHeightPx = container.scrollHeight;
-  const contentWidthPx  = container.scrollWidth;
-
-  const scaleByHeight = usableHeightPx / contentHeightPx;
-  // scaleByWidth ini jaga-jaga (safety net) saja: lebar #formsContainer
-  // sudah dikunci 192mm lewat CSS (lihat @media print), jadi nilainya
-  // mestinya selalu ~1. Tetap dihitung untuk mencegah hasil scale-up
-  // melebar keluar kertas kalau suatu saat CSS lebar itu berubah.
-  const scaleByWidth  = usableWidthPx / contentWidthPx;
-  const scale = Math.min(scaleByHeight, scaleByWidth);
-
-  container.style.setProperty("--print-scale", scale.toFixed(4));
+  // Binary search: 14 iterasi cukup untuk presisi ~0.0001, jauh lebih
+  // presisi dari yang dibutuhkan, dan tetap sangat cepat (cuma reflow
+  // berulang, tidak ada network/animasi).
+  for(let i=0; i<14; i++){
+    const mid = (lo + hi) / 2;
+    setAllSheetsFs(mid);
+    const heightPx = totalSheetsHeightPx();
+    if(heightPx > usableHeightPx){
+      hi = mid; // masih kepanjangan -> coba --fs lebih kecil
+    } else {
+      bestFs = mid; // masih muat / pas -> simpan, coba --fs lebih besar lagi
+      lo = mid;
+    }
+  }
+  setAllSheetsFs(bestFs);
 }
 
 function resetSheetsAfterPrint(){
-  const container = document.getElementById("formsContainer");
-  if(container) container.style.removeProperty("--print-scale");
+  document.querySelectorAll(".sheet").forEach(sheet=>{
+    sheet.style.removeProperty("--fs");
+  });
+  restoreEditorUiAfterPrint();
 }
 
-window.addEventListener("beforeprint", prepareSheetsForPrint);
+window.addEventListener("beforeprint", fitToOnePage);
 window.addEventListener("afterprint", resetSheetsAfterPrint);
 
 document.getElementById("btnPrint").addEventListener("click", ()=>{
@@ -1812,7 +1919,7 @@ document.getElementById("btnPrint").addEventListener("click", ()=>{
   // urutan "ukur dulu, baru print" pasti terjadi sebelum dialog
   // print browser muncul -- beberapa browser memicu beforeprint
   // terlalu dekat/terlambat dengan saat snapshot layout diambil.
-  prepareSheetsForPrint();
+  fitToOnePage();
   window.print();
 });
 </script>
