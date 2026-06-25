@@ -1236,27 +1236,21 @@ document.getElementById("btnPrintSelection").addEventListener("click", ()=>{
     });
 
     // Cari elemen .sheet di dokumen web untuk memanipulasi --fs dinamis
-    const sheets = document.querySelectorAll(".sheet");
-    if(sheets[fIdx]){
-      let scale = 1.0;
-      
-      // Aturan skala super ketat demi menjamin 1 halaman
-      if (totalActiveRows === 0) scale = 1.0;
-      else if (totalActiveRows > 25) scale = 0.55; // Sangat padat, font dikecilkan drastis agar muat
-      else if (totalActiveRows > 18) scale = 0.65;
-      else if (totalActiveRows > 12) scale = 0.75;
-      else if (totalActiveRows > 6)  scale = 0.85;
-      else scale = 0.95; // Sedikit kereta tetap diberi ruang aman
-      
-      sheets[fIdx].style.setProperty("--fs", scale);
-    }
-  });
+// Kembalikan skala font tampilan web setelah jendela print ditutup
+  const sheetsToReset = document.querySelectorAll(".sheet");
+  sheetsToReset.forEach(s => s.style.setProperty("--fs", "1"));
+});
 
-  // Jalankan perintah print native browser
-  window.print();
-  
-  // Kembalikan skala font tampilan web setelah jendela print ditutup
-  const sheets = document.querySelectorAll(".sheet");
+// INITIALIZATION ENGINE LOAD RUN
+(async function init(){
+  loadAll();
+  pushHistory();
+  render();
+  await loadTTDFromGithub();
+})();
+</script>
+</body>
+</html>
   sheets.forEach(s => s.style.setProperty("--fs", "1"));
 });
 
