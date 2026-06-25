@@ -1878,14 +1878,38 @@ function fitToOnePage(){
   const pxPerMm = mmToPxRatio();
   const PAGE_H_MM = 297; // A4 portrait
   const MARGIN_MM = 9;   // sama dengan @page margin di CSS
-  const usableHeightPx = (PAGE_H_MM - MARGIN_MM * 2) * pxPerMm;
 
-  // Batas pencarian --fs. 0.25 = sangat kecil tapi masih relatif
-  // terbaca; 3 = jaga-jaga kalau kontennya sangat sedikit (1-2 baris)
-  // supaya bisa membesar signifikan untuk memenuhi halaman, sesuai
-  // permintaan "diperbesar supaya memenuhi 1 halaman penuh".
-  let lo = 0.25, hi = 3;
-  let bestFs = 1;
+  // SAFETY_MARGIN: target tinggi BUKAN 100% dari tinggi halaman, tapi
+  // sedikit di bawahnya. Ini menutup selisih kecil yang konsisten
+  // muncul antara scrollHeight yang diukur JS saat ini vs ukuran
+  // akhir yang benar-benar dirender print engine browser (rounding,
+  // sub-pixel, dst) -- inilah sumber "luber sedikit" yang sebelumnya
+  // baru ketahuan butuh scale manual 90% dari dialog print browser.
+  // Dengan margin 2% ini, kasus tersebut seharusnya otomatis tertutup
+  // tanpa perlu user menyetel scale manual lagi.
+  const SAFETY_MARGIN = 0.98;
+  const usableHeightPx = (PAGE_H_MM - MARGIN_MM * 2) * pxPerMm * SAFETY_MARGIN;
+
+  // Batas pencarian --fs.
+  // lo = 0.15: diturunkan dari 0.25 -- ini KHUSUS untuk kasus form
+  // dengan jumlah baris gerakan langsir sangat banyak. Prioritas yang
+  // diminta: 1 halaman itu MUTLAK, keterbacaan boleh dikompromikan
+  // kalau memang harus. 0.15 masih bisa kebaca dengan kaca pembesar/
+  // di-zoom PDF, sementara tetap menjamin "tidak pernah pindah halaman"
+  // selama secara matematis ruangnya masih bisa dibagi.
+  // hi = 3: jaga-jaga kalau kontennya sangat sedikit (1-2 baris),
+  // supaya bisa membesar signifikan memenuhi halaman (sesuai
+  // permintaan sebelumnya: "diperbesar supaya memenuhi 1 halaman").
+  let lo = 0.15, hi = 3;
+  // bestFs diinisialisasi ke lo (BUKAN 1) dengan sengaja: ini menjamin
+  // SELALU ada fallback yang aman tanpa pengecekan tambahan -- kalau
+  // konten sangat panjang sampai bahkan di --fs=lo pun masih melebihi
+  // 1 halaman, cabang "muat" di bawah tidak akan pernah ter-trigger,
+  // dan bestFs otomatis tetap di lo (dipaksa minimum, 1 halaman tetap
+  // prioritas mutlak). Kalau dulu diinisialisasi ke 1, ini jadi bug:
+  // kasus konten yang PAS di --fs=1 (tidak perlu diperbesar/diperkecil)
+  // jadi tidak bisa dibedakan dari kasus ekstrem yang gagal total.
+  let bestFs = lo;
 
   // Binary search: 14 iterasi cukup untuk presisi ~0.0001, jauh lebih
   // presisi dari yang dibutuhkan, dan tetap sangat cepat (cuma reflow
