@@ -253,17 +253,31 @@
     }
 
     .form-wrap{ margin:0 !important; }
-    /* Tiap .sheet wajib mulai di halaman baru, kecuali yang pertama --
-       inilah yang menjadikan "+Tambah Form Langsir" tetap rapi 1 form
-       per halaman, bukan ikut nge-print bersambung tanpa batas. */
-    .form-wrap + .form-wrap{ page-break-before:always; }
+    /* CATATAN: sebelumnya di sini ada rule
+       ".form-wrap + .form-wrap{ page-break-before:always; }" supaya
+       1 form = 1 halaman. Itu DIHAPUS dengan sengaja -- sekarang
+       maunya kebalikan: SEMUA form (berapa pun jumlahnya) dipaksa
+       muat dalam 1 halaman yang sama, dengan cara di-scale sebagai
+       SATU KESATUAN lewat #formsContainer (lihat .sheet di bawah
+       untuk alasan kenapa transform dipasang di situ, bukan di sini). */
+
+    #formsContainer{
+      transform-origin: top center;
+      /* --print-scale dihitung JS dari TOTAL tinggi semua form,
+         bukan per form lagi -- supaya rasio antar form tetap sama
+         (form 1 & form 2 mengecil/membesar dengan persentase sama). */
+      transform: scale(var(--print-scale, 1));
+      /* lebar dasar sebelum di-scale harus sama dengan lebar area
+         cetak (lebar kertas - margin kiri/kanan) -- supaya saat
+         di-scale UP (form sedikit/pendek) hasilnya tidak melebar
+         keluar kertas, dan saat di-scale DOWN tetap center rapi. */
+      width: 192mm; /* 210mm (A4) - 9mm*2 margin, sama dengan @page */
+      margin: 0 auto;
+    }
 
     .sheet{
       border:none !important;
       box-shadow:none !important;
-      transform-origin: top center;
-      /* --print-scale diisi oleh JS (default 1 = tidak diubah) */
-      transform: scale(var(--print-scale, 1));
     }
 
     /* Saat fokus mengetik di cell/editable, outline biru jangan ikut
@@ -1706,30 +1720,43 @@ loadTTDFromGithub();
 pushHistory(); // simpan state awal sebagai titik undo paling awal
 
 /* ====================================================================
-   CETAK: 1 form = 1 halaman, dengan skala otomatis per-form
+   CETAK: SEMUA form dipaksa muat dalam 1 halaman ("fit to page")
    ------------------------------------------------------------------
-   Kenapa bukan hitung scale dari px langsung?
-   scrollHeight itu satuan piksel CSS, sedangkan tinggi halaman cetak
-   ditentukan dalam satuan fisik (mm) lewat @page. Browser yang
-   menerjemahkan mm->px saat benar-benar mencetak, dan hasilnya bisa
-   sedikit berbeda antar browser/printer. Supaya tidak menebak-nebak
-   angka konversi itu, kita ukur tinggi-halaman-tersedia dengan cara
-   yang sama: bikin elemen penggaris (ruler) 1mm tinggi memakai unit
-   mm juga, lalu baca getBoundingClientRect().height-nya dalam px.
-   Itu memberi rasio mm->px yang AKTUAL dipakai browser saat ini --
-   bukan konstanta 96dpi yang ditebak dari luar.
+   Ini sengaja BUKAN "1 form = 1 halaman" lagi. Maunya sekarang persis
+   seperti "Fit Sheet on One Page" di Google Sheets/Excel: berapa pun
+   banyaknya form (ditambah lewat "+Tambah Form Langsir"), semuanya
+   digabung jadi SATU kesatuan lalu di-scale agar pas mengisi 1
+   halaman A4 -- mengecil kalau kepanjangan, MEMBESAR kalau kependekan
+   (supaya 1 form pendek pun memenuhi halaman, bukan menyisakan area
+   putih kosong di bawah).
 
-   Urutan kerja (ini yang menjawab masalah "kadang luber ke halaman 2"):
-   1) Saat beforeprint, browser BELUM commit ke layout cetak akhir.
-      Kita tetap ukur scrollHeight tiap .sheet di kondisi sekarang --
-      cukup akurat karena .sheet sudah disiapkan dengan ukuran A4 (mm)
-      dari css, jadi reflow antara mode normal -> print minim.
-   2) Hitung tinggi-halaman-tersedia dalam px lewat ruler mm di atas.
-   3) Kalau tinggi konten > tinggi halaman, set --print-scale pada
-      .sheet ITU SENDIRI saja (bukan global) -- supaya form lain yang
-      muat normal tidak ikut diperkecil.
-   4) Setelah print selesai (afterprint), kembalikan semua --print-scale
-      ke 1 supaya tampilan editor di layar tidak ikut mengecil.
+   Kenapa scale-nya dipasang di #formsContainer (1 elemen), bukan di
+   tiap .sheet seperti versi sebelumnya?
+   - Supaya rasio scale SAMA untuk semua form -- form 1 dan form 2
+     mengecil/membesar dengan persentase yang identik, jadi ukuran
+     font antar form tetap konsisten satu sama lain.
+   - Scale di 1 elemen tunggal tidak butuh kompensasi margin negatif
+     seperti pendekatan per-sheet sebelumnya, karena tidak ada elemen
+     lain sesudahnya dalam alur dokumen yang perlu "ditarik naik".
+
+   Kenapa bukan hitung scale dari px langsung pakai konstanta 96dpi?
+   scrollHeight itu satuan piksel CSS, sedangkan tinggi halaman cetak
+   ditentukan dalam satuan fisik (mm) lewat @page. Rasio mm->px bisa
+   beda dikit antar browser. Supaya tidak menebak, kita ukur rasio itu
+   LANGSUNG dari browser yang sedang jalan: bikin elemen penggaris
+   100mm, baca tinggi pxnya lewat getBoundingClientRect().
+
+   Urutan kerja:
+   1) Reset scale ke 1 dulu, baru ukur scrollHeight #formsContainer --
+      supaya pengukuran tidak kena pengaruh scale hasil print sebelumnya.
+   2) Hitung tinggi & lebar halaman yang tersedia dalam px (dari mm).
+   3) scale = min(usableHeightPx / contentHeightPx, usableWidthPx / contentWidthPx)
+      -- ambil yang LEBIH KECIL dari rasio tinggi vs lebar, supaya hasil
+      scale-up tidak melebar keluar kertas secara horizontal kalau
+      suatu saat lebar kontennya ikut berubah.
+   4) Terapkan satu nilai scale itu ke #formsContainer.
+   5) Setelah print selesai (afterprint), kembalikan scale ke 1 supaya
+      tampilan editor di layar tidak ikut berubah ukuran.
 ==================================================================== */
 
 function mmToPxRatio(){
@@ -1747,36 +1774,34 @@ function mmToPxRatio(){
 function prepareSheetsForPrint(){
   const pxPerMm = mmToPxRatio();
   const PAGE_H_MM = 297; // A4 portrait
+  const PAGE_W_MM = 210;
   const MARGIN_MM = 9;   // sama dengan @page margin di CSS
-  const usablePx = (PAGE_H_MM - MARGIN_MM * 2) * pxPerMm;
+  const usableHeightPx = (PAGE_H_MM - MARGIN_MM * 2) * pxPerMm;
+  const usableWidthPx  = (PAGE_W_MM - MARGIN_MM * 2) * pxPerMm;
 
-  document.querySelectorAll(".sheet").forEach(sheet=>{
-    // reset dulu supaya pengukuran tinggi tidak kena scale/margin lama
-    sheet.style.setProperty("--print-scale", "1");
-    sheet.style.marginBottom = "0px";
+  const container = document.getElementById("formsContainer");
+  if(!container) return;
 
-    const contentPx = sheet.scrollHeight;
-    if(contentPx > usablePx){
-      const scale = usablePx / contentPx;
-      sheet.style.setProperty("--print-scale", scale.toFixed(4));
+  // reset dulu supaya pengukuran tinggi/lebar tidak kena scale lama
+  container.style.setProperty("--print-scale", "1");
 
-      // transform:scale() mengecilkan TAMPILAN .sheet, tapi ruang yang
-      // tetap dipesan di layout halaman masih setinggi ukuran ASLI
-      // (sebelum di-scale) -- sisanya jadi area putih kosong. Margin
-      // negatif ini "menarik kembali" sisa ruang kosong itu, supaya
-      // elemen sesudahnya (kalau ada di halaman yang sama) tidak ikut
-      // turun mengikuti tinggi asli yang sudah tidak relevan lagi.
-      const shrinkPx = contentPx * (1 - scale);
-      sheet.style.marginBottom = (-shrinkPx) + "px";
-    }
-  });
+  const contentHeightPx = container.scrollHeight;
+  const contentWidthPx  = container.scrollWidth;
+
+  const scaleByHeight = usableHeightPx / contentHeightPx;
+  // scaleByWidth ini jaga-jaga (safety net) saja: lebar #formsContainer
+  // sudah dikunci 192mm lewat CSS (lihat @media print), jadi nilainya
+  // mestinya selalu ~1. Tetap dihitung untuk mencegah hasil scale-up
+  // melebar keluar kertas kalau suatu saat CSS lebar itu berubah.
+  const scaleByWidth  = usableWidthPx / contentWidthPx;
+  const scale = Math.min(scaleByHeight, scaleByWidth);
+
+  container.style.setProperty("--print-scale", scale.toFixed(4));
 }
 
 function resetSheetsAfterPrint(){
-  document.querySelectorAll(".sheet").forEach(sheet=>{
-    sheet.style.removeProperty("--print-scale");
-    sheet.style.removeProperty("margin-bottom");
-  });
+  const container = document.getElementById("formsContainer");
+  if(container) container.style.removeProperty("--print-scale");
 }
 
 window.addEventListener("beforeprint", prepareSheetsForPrint);
