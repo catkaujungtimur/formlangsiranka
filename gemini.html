@@ -219,11 +219,11 @@
     .modal-box{ width:94vw; }
   }
 
-  /* ==================== PRINT ENGINE SPREADSHEET ==================== */
+  /* ==================== PRINT ENGINE SPREADSHEET (FIXED) ==================== */
   @media print {
     @page {
       size: A4 portrait;
-      margin: 12mm 12mm 12mm 12mm;
+      margin: 10mm 10mm 10mm 10mm; /* Sedikit diperlebar agar area cetak maksimal */
     }
     body {
       background: #fff;
@@ -241,9 +241,9 @@
       padding: 0 !important;
     }
     .form-wrap {
-      margin-bottom: 0 !important;
-      page-break-after: always;
-      page-break-inside: avoid;
+      margin-bottom: 20px !important; /* Beri jarak antar form saat diprint dalam 1 halaman */
+      page-break-inside: avoid;       /* Mencegah satu form terpotong nggantung di tengah halaman */
+      /* page-break-after: always; <-- DIHAPUS agar tidak memaksa ganti halaman jika masih muat */
     }
     .sheet {
       border: none !important;
