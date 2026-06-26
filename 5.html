@@ -214,7 +214,22 @@
   .posawal-inline{ display:flex; align-items:center; gap:6px; font-size:11px; }
   .posawal-inline input{ width:80px; font-family:var(--mono); font-size:11.5px; padding:3px 5px; border:1px solid var(--muted); border-radius:2px; }
 
-  @media (max-width:720px){
+  /* PENTING -- @media (max-width:720px) TANPA "screen" eksplisit
+     berlaku untuk SEMUA media type, termasuk print. Print-engine
+     browser yang berbeda (Chrome vs Firefox) menghitung "lebar
+     viewport" untuk keperluan media query saat snapshot cetak
+     dengan cara yang TIDAK SELALU SAMA -- ada yang memakai lebar
+     halaman cetak (umumnya >720px untuk A4), ada yang mewarisi lebar
+     window asal yang sedang dibuka (bisa <720px kalau window/HP-nya
+     sempit). Kalau breakpoint ini ikut ter-trigger saat print, grid
+     .meta berubah dari 4 kolom jadi 2 kolom -- itulah sebabnya field
+     "Emplasemen" tiba-tiba turun ke baris baru (bukan sejajar kanan
+     Hari/Tanggal seperti seharusnya), dan ini SALAH SATU sumber
+     selisih tinggi antar browser yang selama ini terlihat sebagai
+     "luber sedikit secara tidak konsisten". Solusi: tambahkan
+     "screen" agar breakpoint ini cuma berlaku saat dilihat di layar,
+     TIDAK PERNAH ikut aktif dalam mode print apa pun. */
+  @media screen and (max-width:720px){
     .meta{ grid-template-columns: 90px 1fr; }
     table.main{ font-size:10.5px; }
     .modal-box{ width:94vw; }
@@ -269,7 +284,7 @@
        kosong tetap akan memakan lebar kalau cuma isinya yang disembunyikan. */
     .toolbar, .format-bar, .form-head-bar, .add-form-row,
     .row-menu, .row-actions, .col-resizer, .date-arrow,
-    .modal-overlay, .modal-box, .col-actions{
+    .modal-overlay, .modal-box, .col-actions, table.main tfoot{
       display:none !important;
     }
 
@@ -1854,7 +1869,14 @@ function totalSheetsHeightPx(){
 const PRINT_HIDE_SELECTOR = [
   ".toolbar", ".format-bar", ".form-head-bar", ".add-form-row",
   ".row-menu", ".row-actions", ".col-resizer", ".date-arrow",
-  ".modal-overlay", ".modal-box", ".col-actions", ".ttd-combo"
+  ".modal-overlay", ".modal-box", ".col-actions", ".ttd-combo",
+  // table.main tfoot: berisi tombol "+ Tambah Rangkaian" + hint --
+  // UI editor murni, tidak ada data form di dalamnya. Disembunyikan
+  // lewat selector tfoot (bukan cuma .open-popup-row pada <td> di
+  // dalamnya) supaya seluruh <tr> ikut hilang, bukan cuma isinya --
+  // <td> yang display:none sendirian masih bisa menyisakan <tr>
+  // kosong dengan tinggi minimal di sebagian browser.
+  "table.main tfoot"
 ].join(",");
 
 let _hiddenForPrintEls = [];
