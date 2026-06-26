@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -1957,16 +1956,30 @@ function fitToOnePage(){
   setAllSheetsFs(bestFs);
 
   // === DIAGNOSTIK SEMENTARA -- HAPUS SETELAH MASALAH KETEMU ===
-  // Ini cuma untuk membuktikan apakah fitToOnePage() benar-benar
-  // menghasilkan angka yang masuk akal. Setelah klik OK di alert ini,
-  // proses print akan tetap lanjut seperti biasa.
   alert(
-    "DIAGNOSTIK CETAK\n" +
+    "DIAGNOSTIK CETAK (sebelum print)\n" +
     "--fs hasil hitungan: " + bestFs.toFixed(4) + "\n" +
     "usableHeightPx (target 1 halaman): " + usableHeightPx.toFixed(1) + " px\n" +
     "Tinggi konten SETELAH di-set --fs: " + totalSheetsHeightPx().toFixed(1) + " px\n" +
     "pxPerMm: " + pxPerMm.toFixed(3) + "\n" +
     "Jumlah .sheet ditemukan: " + document.querySelectorAll(".sheet").length
+  );
+
+  // Cek KEDUA -- dilakukan SETELAH alert ditutup, untuk membuktikan
+  // apakah inline style --fs masih utuh tersimpan pasca-alert/reflow,
+  // atau ternyata sudah hilang/berubah sebelum window.print() jalan.
+  const firstSheet = document.querySelector(".sheet");
+  const computedFsAfterAlert = firstSheet
+    ? getComputedStyle(firstSheet).getPropertyValue("--fs").trim()
+    : "(tidak ada .sheet)";
+  const inlineFsAfterAlert = firstSheet
+    ? firstSheet.style.getPropertyValue("--fs")
+    : "(tidak ada .sheet)";
+  alert(
+    "DIAGNOSTIK CETAK (SETELAH alert pertama ditutup)\n" +
+    "--fs computed style sheet pertama: " + computedFsAfterAlert + "\n" +
+    "--fs inline style sheet pertama: " + inlineFsAfterAlert + "\n" +
+    "Tinggi konten SAAT INI: " + totalSheetsHeightPx().toFixed(1) + " px"
   );
   // === AKHIR DIAGNOSTIK SEMENTARA ===
 }
@@ -2030,4 +2043,3 @@ document.getElementById("btnPrint").addEventListener("click", ()=>{
 </script>
 </body>
 </html>
-
