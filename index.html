@@ -1919,6 +1919,16 @@ function printSingleForm(fIdx){
     w.style.display = "none";
   });
 
+  // === DIAGNOSTIK SEMENTARA -- HAPUS SETELAH MASALAH KETEMU ===
+  console.log("[printSingleForm] fIdx:", fIdx);
+  console.log("[printSingleForm] total .form-wrap ditemukan:", allWraps.length);
+  console.log("[printSingleForm] jumlah form yang disembunyikan:", _hiddenFormWrapsForSingle.length);
+  console.log("[printSingleForm] display targetWrap:", getComputedStyle(targetWrap).display);
+  _hiddenFormWrapsForSingle.forEach((w,i)=>{
+    console.log(`[printSingleForm] form disembunyikan #${i}, computed display:`, getComputedStyle(w).display);
+  });
+  // === AKHIR DIAGNOSTIK SEMENTARA ===
+
   _fitInProgressOrDone = true; // cegah beforeprint native menghitung ulang dari semua wrap
   fitToOnePage([targetWrap]);
   window.print();
