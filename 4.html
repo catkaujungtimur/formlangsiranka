@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -2087,7 +2088,17 @@ document.getElementById("modalApply").addEventListener("click", ()=>{
     // digeser dihitung dari SISA ruang yang tersedia setelah kolom
     // LAIN (yang diam, sesuai keinginan user) dikurangkan dari total
     // itu -- bukan batas statis 4-60% yang sama untuk semua kondisi.
-    const TOTAL_TARGET = 85;
+    // PENTING -- TOTAL_TARGET = 100 (BUKAN 85). Bug yang sempat lolos:
+    // kalau TOTAL_TARGET disamakan dengan total default colWidths
+    // (rk+pos+pos+urut+ket = 85), maka "sisa ruang" yang boleh dipakai
+    // kolom manapun untuk MEMBESAR dari posisi default selalu PERSIS
+    // 0 (karena kolom lain sudah memakai semua 85% itu) -- akibatnya
+    // drag terasa "diam total", padahal sebenarnya cuma dibatasi ke
+    // nilai yang sama persis dengan saat ini di setiap frame mousemove.
+    // 100 memberi slack 15% (dulu "milik" kolom .col-actions sebelum
+    // dihilangkan saat print) sebagai ruang gerak NYATA bagi kolom
+    // manapun yang ingin membesar dari kondisi default.
+    const TOTAL_TARGET = 100;
     const MIN_COL = 4; // lebar minimum 1 kolom, supaya tidak hilang/negatif
 
     function otherColsSum(excludeKey){
