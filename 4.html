@@ -136,8 +136,29 @@
   .row-actions{ display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap; }
   .row-actions button{ padding:2px 7px; font-size:10.5px; }
 
-  .row-menu-wrap{ position:relative; text-align:center; }
+  /* PENTING -- .row-menu-wrap SEKARANG child langsung <tr> (BUKAN lagi
+     <td> kolom tabel ke-6). position:absolute menempelkannya ke sisi
+     kanan-tengah baris, mengandalkan tr{position:relative} yang di-set
+     di JS saat render. Visual hasilnya identik dengan sebelumnya (tombol
+     tetap di kanan tiap baris), tapi tabel <table> sekarang BENAR-BENAR
+     cuma 5 kolom data secara struktural -- tidak ada lagi kolom ke-6
+     yang perlu disembunyikan/dinormalisasi-ulang saat print (lihat
+     riwayat panjang soal normalisasi 85%->100% sebelumnya -- akar
+     masalah itu sekarang hilang total, bukan ditambal lagi). */
+  .row-menu-wrap{
+    position:absolute;
+    right:4px;
+    top:50%;
+    transform:translateY(-50%);
+    z-index:5;
+  }
   .row-menu-btn{ border:1px solid var(--muted); background:var(--paper); color:var(--muted); width:22px; height:20px; line-height:1; font-size:13px; padding:0; border-radius:3px; }
+  /* Ruang ekstra di kanan sel Keterangan supaya teks tidak tertindih
+     tombol row-menu yang mengambang (position:absolute) di atasnya.
+     Cuma perlu di EDITOR -- saat print, tombol disembunyikan total
+     dan ruang ekstra ini di-override balik ke padding normal (lihat
+     @media print) supaya tidak menyisakan spasi kosong tak perlu. */
+  .col-ket-cell{ padding-right:28px !important; }
   .row-menu{ position:fixed; background:#fff; border:1px solid var(--ink); box-shadow:0 3px 10px rgba(0,0,0,.18); z-index:300; min-width:160px; display:none; }
   .row-menu.open{ display:block; }
   .row-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:7px 10px; font-size:11.5px; border-radius:0; }
@@ -277,6 +298,13 @@
     .col-pos{ width:var(--col-pos-print) !important; }
     .col-urut{ width:var(--col-urut-print) !important; }
     .col-ket{ width:var(--col-ket-print) !important; }
+
+    /* Padding ekstra di .col-ket-cell cuma diperlukan di EDITOR untuk
+       memberi ruang tombol row-menu yang mengambang -- saat print
+       tombol itu sudah disembunyikan total (.row-menu-wrap di atas),
+       jadi padding dikembalikan ke normal supaya tidak ada spasi
+       kosong tak perlu di kanan kolom Keterangan. */
+    .col-ket-cell{ padding-right:calc(6px * var(--fs)) !important; }
 
     /* Placeholder NATIF <input> (mis. "Jam Mulai" placeholder="contoh:
        15.00") -- mekanismenya beda dari .editable-cell:empty:before.
@@ -950,6 +978,7 @@ function renderTbody(form, fIdx, tbody){
         : (row.posAwal || row.posAkhir ? "<span class='warn-text'>kombinasi posisi belum ada di tabel RUTE</span>" : "");
 
       const tr = document.createElement("tr");
+      tr.style.position = "relative"; // wajib, supaya .row-menu-wrap (position:absolute) menempel relatif ke baris INI, bukan ke ancestor lain
       tr.innerHTML = `
         <td>
           <div class="editable-cell rk-editable auto" contenteditable="true" style="font-family:${globalFormat.fontFamily};" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-rkcell="1" data-navcol="-1" data-placeholder="${escapeAttr(lokoLabels[rIdx])}">${escapeHtml(row.rkOverride || "")}</div>
@@ -961,18 +990,37 @@ function renderTbody(form, fIdx, tbody){
           <input class="cell" style="text-align:center" value="${escapeAttr(row.posAkhir)}" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-field="posAkhir" data-navcol="1">
         </td>
         <td class="auto-line" style="font-family:${globalFormat.fontFamily};">${urutText}</td>
-        <td>
+        <td class="col-ket-cell">
           <div class="editable-cell" contenteditable="true" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-ketcell="1" data-placeholder="contoh: C1: AMBIL 9 KRT EX 279" data-navcol="2">${escapeHtml(row.ket)}</div>
         </td>
-        <td class="row-menu-wrap col-actions">
-          <button class="row-menu-btn" data-action="togglemenu" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-navcol="3">&#8942;</button>
-          <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
-            <button data-action="insert-above" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di atas</button>
-            <button data-action="insert-below" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di bawah</button>
-            <button data-action="delrow" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Hapus baris ini</button>
-          </div>
-        </td>
+        <td class="col-actions"></td>
       `;
+      // PENTING -- <td class="col-actions"></td> di atas SENGAJA
+      // dikosongkan total (tanpa konten apa pun). Ini bukan dihapus
+      // karena baris header blok (trHead, lihat di atas) MASIH 6
+      // kolom -- table-layout:fixed butuh jumlah kolom konsisten di
+      // semua baris untuk lebar yang sejajar sempurna. <td> kosong ini
+      // cuma "penjaga ruang" 34px, isinya TIDAK PERNAH diisi apa pun.
+      //
+      // Tombol menu (sisip/hapus baris) dipindah TOTAL ke luar <td>
+      // ini -- jadi elemen MENGAMBANG (position:absolute) yang
+      // ditempel ke <tr> langsung. Alasannya: kalau tombol itu taruh
+      // DI DALAM <td> kosong ini, dia tetap "terikat" ke sistem kolom
+      // tabel (lebar 34px tetap dihitung sebagai bagian struktur).
+      // Dengan mengambang LEPAS dari <td>, tombol murni jadi elemen
+      // visual overlay -- tidak mempengaruhi/dipengaruhi lebar kolom
+      // apa pun, baik di editor maupun saat print.
+      const rowMenuWrap = document.createElement("div");
+      rowMenuWrap.className = "row-menu-wrap";
+      rowMenuWrap.innerHTML = `
+        <button class="row-menu-btn" data-action="togglemenu" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-navcol="3">&#8942;</button>
+        <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
+          <button data-action="insert-above" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di atas</button>
+          <button data-action="insert-below" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di bawah</button>
+          <button data-action="delrow" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Hapus baris ini</button>
+        </div>
+      `;
+      tr.appendChild(rowMenuWrap);
       tbody.appendChild(tr);
     });
   });
