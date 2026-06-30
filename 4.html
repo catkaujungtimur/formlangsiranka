@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -117,7 +115,10 @@
   .col-pos{ width:var(--col-pos); text-align:center; }
   .col-urut{ width:var(--col-urut); }
   .col-ket{ width:var(--col-ket); }
-  .col-actions{ width:34px; }
+  /* .col-actions: SUDAH TIDAK DIPAKAI -- dulu kolom ke-6 (tombol
+     Hapus/menu titik-tiga), sekarang tombol2 itu dipindah ke dalam
+     td yang sudah ada (Edit Keterangan/+Baris/Hapus jadi 1 td; titik-
+     tiga jadi bagian flex .ket-cell-inner). Tabel permanen 5 kolom. */
 
   .col-resizer{
     position:absolute; right:-3px; top:0; width:6px; height:100%; cursor:col-resize; z-index:5;
@@ -136,29 +137,17 @@
   .row-actions{ display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap; }
   .row-actions button{ padding:2px 7px; font-size:10.5px; }
 
-  /* PENTING -- .row-menu-wrap SEKARANG child langsung <tr> (BUKAN lagi
-     <td> kolom tabel ke-6). position:absolute menempelkannya ke sisi
-     kanan-tengah baris, mengandalkan tr{position:relative} yang di-set
-     di JS saat render. Visual hasilnya identik dengan sebelumnya (tombol
-     tetap di kanan tiap baris), tapi tabel <table> sekarang BENAR-BENAR
-     cuma 5 kolom data secara struktural -- tidak ada lagi kolom ke-6
-     yang perlu disembunyikan/dinormalisasi-ulang saat print (lihat
-     riwayat panjang soal normalisasi 85%->100% sebelumnya -- akar
-     masalah itu sekarang hilang total, bukan ditambal lagi). */
-  .row-menu-wrap{
-    position:absolute;
-    right:4px;
-    top:50%;
-    transform:translateY(-50%);
-    z-index:5;
-  }
+  /* .ket-cell-inner: wrapper flex di DALAM td Keterangan, menampung
+     teks editable-cell (mengambil sisa lebar) + tombol titik-tiga
+     (row-menu-wrap) berdampingan. Pendekatan ini jauh lebih sederhana
+     & tidak rapuh dibanding percobaan sebelumnya (position:absolute
+     terhadap <tr> -- ternyata escape keluar batas tabel secara visual,
+     terlihat aneh). Tabel sekarang BENAR-BENAR 5 kolom solid, tombol
+     menu murni bagian dari isi sel Keterangan, bukan kolom terpisah. */
+  .ket-cell-inner{ display:flex; align-items:flex-start; gap:4px; }
+  .ket-cell-inner .editable-cell{ flex:1; min-width:0; }
+  .row-menu-wrap{ flex-shrink:0; position:relative; }
   .row-menu-btn{ border:1px solid var(--muted); background:var(--paper); color:var(--muted); width:22px; height:20px; line-height:1; font-size:13px; padding:0; border-radius:3px; }
-  /* Ruang ekstra di kanan sel Keterangan supaya teks tidak tertindih
-     tombol row-menu yang mengambang (position:absolute) di atasnya.
-     Cuma perlu di EDITOR -- saat print, tombol disembunyikan total
-     dan ruang ekstra ini di-override balik ke padding normal (lihat
-     @media print) supaya tidak menyisakan spasi kosong tak perlu. */
-  .col-ket-cell{ padding-right:28px !important; }
   .row-menu{ position:fixed; background:#fff; border:1px solid var(--ink); box-shadow:0 3px 10px rgba(0,0,0,.18); z-index:300; min-width:160px; display:none; }
   .row-menu.open{ display:block; }
   .row-menu button{ display:block; width:100%; text-align:left; border:none; background:transparent; padding:7px 10px; font-size:11.5px; border-radius:0; }
@@ -276,7 +265,6 @@
     .sheet{ border:none; padding:calc(20px * var(--fs)) calc(26px * var(--fs)); }
     .form-wrap{ margin:0 !important; }
     .row-actions, .open-popup-row, .row-menu-wrap, .add-form-row, table.main tfoot{ display:none !important; }
-    .col-actions{ display:none !important; }
     .date-arrow{ display:none !important; }
     input.cell, select.cell{ border:none !important; outline:none !important; }
     .meta input{ border-bottom:none; }
@@ -286,25 +274,6 @@
     .editable-cell:focus, .block-name-edit:focus{ outline:none !important; background:transparent !important; }
     .ttd-combo{ display:none !important; }
     .name-print-only{ display:inline !important; }
-
-    /* PENTING -- lihat komentar lengkap di applyColWidths() (JS):
-       .col-actions dihilangkan total dari DOM di atas, sisa 15% lebar
-       tabel yang dulu "milik" kolom itu TIDAK otomatis dibagi ulang ke
-       kolom data oleh table-layout:fixed -- itu jadi lubang kosong,
-       membuat semua kolom data 15% lebih sempit dari pengaturan
-       manual user. Override ini memakai --col-*-print (sudah
-       dinormalisasi ke 100% dengan rasio identik) HANYA saat print. */
-    .col-rk{ width:var(--col-rk-print) !important; }
-    .col-pos{ width:var(--col-pos-print) !important; }
-    .col-urut{ width:var(--col-urut-print) !important; }
-    .col-ket{ width:var(--col-ket-print) !important; }
-
-    /* Padding ekstra di .col-ket-cell cuma diperlukan di EDITOR untuk
-       memberi ruang tombol row-menu yang mengambang -- saat print
-       tombol itu sudah disembunyikan total (.row-menu-wrap di atas),
-       jadi padding dikembalikan ke normal supaya tidak ada spasi
-       kosong tak perlu di kanan kolom Keterangan. */
-    .col-ket-cell{ padding-right:calc(6px * var(--fs)) !important; }
 
     /* Placeholder NATIF <input> (mis. "Jam Mulai" placeholder="contoh:
        15.00") -- mekanismenya beda dari .editable-cell:empty:before.
@@ -900,7 +869,6 @@ function renderForm(form, fIdx){
           <th class="col-pos">Posisi Akhir<br>Di Jalur<span class="col-resizer" data-colkey="pos2"></span></th>
           <th class="col-urut">Urutan Pergerakan Langsir<span class="col-resizer" data-colkey="urut"></span></th>
           <th class="col-ket">Keterangan<span class="col-resizer" data-colkey="ket"></span></th>
-          <th class="col-actions"></th>
         </tr>
       </thead>
       <tbody data-tbody-for="${fIdx}"></tbody>
@@ -961,10 +929,6 @@ function renderTbody(form, fIdx, tbody){
         <div class="row-actions">
           <button data-action="editket" data-form="${fIdx}" data-block="${bIdx}" class="success">Edit Keterangan</button>
           <button data-action="addrow-end" data-form="${fIdx}" data-block="${bIdx}" class="success">+ Baris</button>
-        </div>
-      </td>
-      <td class="col-actions">
-        <div class="row-actions">
           <button data-action="delblock" data-form="${fIdx}" data-block="${bIdx}">Hapus</button>
         </div>
       </td>
@@ -978,7 +942,6 @@ function renderTbody(form, fIdx, tbody){
         : (row.posAwal || row.posAkhir ? "<span class='warn-text'>kombinasi posisi belum ada di tabel RUTE</span>" : "");
 
       const tr = document.createElement("tr");
-      tr.style.position = "relative"; // wajib, supaya .row-menu-wrap (position:absolute) menempel relatif ke baris INI, bukan ke ancestor lain
       tr.innerHTML = `
         <td>
           <div class="editable-cell rk-editable auto" contenteditable="true" style="font-family:${globalFormat.fontFamily};" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-rkcell="1" data-navcol="-1" data-placeholder="${escapeAttr(lokoLabels[rIdx])}">${escapeHtml(row.rkOverride || "")}</div>
@@ -991,36 +954,27 @@ function renderTbody(form, fIdx, tbody){
         </td>
         <td class="auto-line" style="font-family:${globalFormat.fontFamily};">${urutText}</td>
         <td class="col-ket-cell">
-          <div class="editable-cell" contenteditable="true" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-ketcell="1" data-placeholder="contoh: C1: AMBIL 9 KRT EX 279" data-navcol="2">${escapeHtml(row.ket)}</div>
+          <div class="ket-cell-inner">
+            <div class="editable-cell" contenteditable="true" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-ketcell="1" data-placeholder="contoh: C1: AMBIL 9 KRT EX 279" data-navcol="2">${escapeHtml(row.ket)}</div>
+            <div class="row-menu-wrap">
+              <button class="row-menu-btn" data-action="togglemenu" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-navcol="3">&#8942;</button>
+              <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
+                <button data-action="insert-above" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di atas</button>
+                <button data-action="insert-below" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di bawah</button>
+                <button data-action="delrow" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Hapus baris ini</button>
+              </div>
+            </div>
+          </div>
         </td>
-        <td class="col-actions"></td>
       `;
-      // PENTING -- <td class="col-actions"></td> di atas SENGAJA
-      // dikosongkan total (tanpa konten apa pun). Ini bukan dihapus
-      // karena baris header blok (trHead, lihat di atas) MASIH 6
-      // kolom -- table-layout:fixed butuh jumlah kolom konsisten di
-      // semua baris untuk lebar yang sejajar sempurna. <td> kosong ini
-      // cuma "penjaga ruang" 34px, isinya TIDAK PERNAH diisi apa pun.
-      //
-      // Tombol menu (sisip/hapus baris) dipindah TOTAL ke luar <td>
-      // ini -- jadi elemen MENGAMBANG (position:absolute) yang
-      // ditempel ke <tr> langsung. Alasannya: kalau tombol itu taruh
-      // DI DALAM <td> kosong ini, dia tetap "terikat" ke sistem kolom
-      // tabel (lebar 34px tetap dihitung sebagai bagian struktur).
-      // Dengan mengambang LEPAS dari <td>, tombol murni jadi elemen
-      // visual overlay -- tidak mempengaruhi/dipengaruhi lebar kolom
-      // apa pun, baik di editor maupun saat print.
-      const rowMenuWrap = document.createElement("div");
-      rowMenuWrap.className = "row-menu-wrap";
-      rowMenuWrap.innerHTML = `
-        <button class="row-menu-btn" data-action="togglemenu" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}" data-navcol="3">&#8942;</button>
-        <div class="row-menu" data-menu-for="${fIdx}-${bIdx}-${rIdx}">
-          <button data-action="insert-above" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di atas</button>
-          <button data-action="insert-below" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Sisip baris di bawah</button>
-          <button data-action="delrow" data-form="${fIdx}" data-block="${bIdx}" data-row="${rIdx}">Hapus baris ini</button>
-        </div>
-      `;
-      tr.appendChild(rowMenuWrap);
+      // PENTING -- tombol menu (titik-tiga) SEKARANG di dalam td
+      // Keterangan (bukan kolom ke-6 terpisah, bukan mengambang
+      // position:absolute seperti percobaan sebelumnya yang ternyata
+      // bermasalah -- escape keluar batas tabel, terlihat aneh di
+      // screenshot). Hasil akhir: tabel BENAR-BENAR 5 kolom solid,
+      // sederhana, tanpa trik positioning yang rapuh. Tombol & menu
+      // disembunyikan total saat print lewat .row-menu-wrap yang
+      // sudah ada di PRINT_HIDE_SELECTOR.
       tbody.appendChild(tr);
     });
   });
@@ -1088,34 +1042,25 @@ function renderFormatBarValues(){
 
 function applyColWidths(){
   const root = document.documentElement.style;
-  root.setProperty("--col-rk", colWidths.rk + "%");
-  root.setProperty("--col-pos", colWidths.pos + "%");
-  root.setProperty("--col-urut", colWidths.urut + "%");
-  root.setProperty("--col-ket", colWidths.ket + "%");
 
-  // === Versi PRINT, dinormalisasi ke 100% ===
-  // Bug yang ditemukan (lihat riwayat investigasi polos.html): colWidths
-  // (rk+pos+pos+urut+ket) totalnya cuma 85% -- sisa 15% itu "milik"
-  // kolom .col-actions (lebar fixed 34px, bukan %). Saat print,
-  // .col-actions di-display:none TOTAL dari DOM. table-layout:fixed
-  // TIDAK otomatis mengisi 15% itu ke kolom lain -- itu jadi RUANG
-  // KOSONG/lubang di kanan tabel, BUKAN dibagi ulang ke kolom data.
-  // Akibatnya seluruh kolom data jadi 15% LEBIH SEMPIT dari yang
-  // seharusnya -- cukup untuk membuat teks yang tadinya pas 1 baris
-  // jadi wrap ke 2 baris, dan kolom "Rangkaian/No Kereta/Gerbong"
-  // tulisannya tertutup border.
-  //
-  // Solusi: normalisasi ulang colWidths ke total 100% (bukan 85%),
-  // simpan sebagai custom property TERPISAH (--col-*-print), dan
-  // pakai property ini HANYA di dalam @media print (lihat CSS).
-  // Rasio antar kolom (12:7:7:29:30) tetap identik -- cuma totalnya
-  // yang dinaikkan dari 85% ke 100%.
+  // PENTING -- normalisasi 85%->100% SEKARANG BERLAKU SELALU (editor
+  // & print sama), bukan cuma saat print seperti versi sebelumnya.
+  // Riwayat: colWidths (rk+pos+pos+urut+ket) totalnya cuma 85% --
+  // sisa 15% itu dulu "milik" kolom .col-actions (lebar fixed 34px).
+  // Setelah tombol menu/hapus dipindah ke dalam sel Keterangan & td
+  // Edit-Keterangan (bukan kolom terpisah lagi), kolom .col-actions
+  // SUDAH DIHAPUS TOTAL dari struktur tabel -- bukan cuma disembunyikan
+  // saat print. Karena tidak ada lagi perbedaan struktur antara editor
+  // & print, tidak perlu lagi 2 set variabel (--col-rk vs --col-rk-print)
+  // -- satu set ini cukup, dipakai di kedua mode. Rasio antar kolom
+  // (12:7:7:29:30) tetap identik, cuma totalnya dinaikkan ke 100%
+  // supaya tidak ada lagi ruang kosong 15% yang terbuang di kanan tabel.
   const totalPct = colWidths.rk + colWidths.pos*2 + colWidths.urut + colWidths.ket;
   const scale = totalPct > 0 ? (100 / totalPct) : 1;
-  root.setProperty("--col-rk-print", (colWidths.rk * scale) + "%");
-  root.setProperty("--col-pos-print", (colWidths.pos * scale) + "%");
-  root.setProperty("--col-urut-print", (colWidths.urut * scale) + "%");
-  root.setProperty("--col-ket-print", (colWidths.ket * scale) + "%");
+  root.setProperty("--col-rk", (colWidths.rk * scale) + "%");
+  root.setProperty("--col-pos", (colWidths.pos * scale) + "%");
+  root.setProperty("--col-urut", (colWidths.urut * scale) + "%");
+  root.setProperty("--col-ket", (colWidths.ket * scale) + "%");
 }
 
 /* ============== PERSIST ============== */
@@ -1847,7 +1792,7 @@ const PRINT_HIDE_SELECTOR = [
   ".toolbar", ".shift-tab-bar", ".format-bar", ".form-head-bar",
   ".add-form-row", ".row-menu", ".row-menu-wrap", ".row-actions",
   ".col-resizer", ".date-arrow", ".modal-overlay", ".modal-box",
-  ".col-actions", ".ttd-combo", "table.main tfoot", ".open-popup-row"
+  ".ttd-combo", "table.main tfoot", ".open-popup-row"
 ].join(",");
 
 let _hiddenForPrintEls = [];
